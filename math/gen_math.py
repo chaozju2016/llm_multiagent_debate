@@ -1,10 +1,14 @@
-import openai
 import json
 import numpy as np
 import time
 import pickle
 from tqdm import tqdm
+import sys
 
+sys.path.append("..")
+from client import LlamaClient
+
+client = LlamaClient()
 def parse_bullets(sentence):
     bullets_preprocess = sentence.split("\n")
     bullets = []
@@ -25,10 +29,9 @@ def parse_bullets(sentence):
 
 def generate_answer(answer_context):
     try:
-        completion = openai.ChatCompletion.create(
-                  model="gpt-3.5-turbo-0301",
-                  messages=answer_context,
-                  n=1)
+        completion = client.create_chat_completion(
+            messages=answer_context,
+        )
     except:
         print("retrying due to an error......")
         time.sleep(20)
@@ -86,11 +89,11 @@ def most_frequent(List):
 if __name__ == "__main__":
     answer = parse_answer("My answer is the same as the other agents and AI language model: the result of 12+28*19+6 is 550.")
 
-    agents = 2
+    agents = 3
     rounds = 3
     np.random.seed(0)
 
-    evaluation_round = 100
+    evaluation_round = 10
     scores = []
 
     generated_description = {}
@@ -132,10 +135,15 @@ if __name__ == "__main__":
 
             text_answers.append(text_answer)
 
-        generated_description[(a, b, c, d, e, f)] = (agent_contexts, answer)
+        generated_description[(a, b, c, d, e, f)] = (
+            agent_contexts,
+            text_answer,
+            answer,
+        )
 
         try:
             text_answer = most_frequent(text_answers)
+            print("text answer: ", text_answer, "answer: ", answer)
             if text_answer == answer:
                 scores.append(1)
             else:

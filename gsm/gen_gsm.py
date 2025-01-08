@@ -1,8 +1,13 @@
-import openai
 import json
 import numpy as np
 import random
+import sys
 
+sys.path.append("..")
+from client import LlamaClient
+import tqdm
+
+client = LlamaClient()
 def construct_message(agents, question, idx):
     if len(agents) == 0:
         return {"role": "user", "content": "Can you double check that your answer is correct. Please reiterate your answer, with your final answer a single numerical number, in the form \\boxed{{answer}}."}
@@ -29,42 +34,49 @@ def read_jsonl(path: str):
         return [json.loads(line) for line in fh.readlines() if line]
 
 if __name__ == "__main__":
-    agents = 3
-    rounds = 2
+    agents = 5
+    rounds = 5
     random.seed(0)
 
     generated_description = {}
 
-    questions = read_jsonl("/data/vision/billf/scratch/yilundu/llm_iterative_debate/grade-school-math/grade_school_math/data/test.jsonl")
+    questions = read_jsonl(
+        "C:/Users/cwang/Documents/llm_multiagent_debate/gsm/grade-school-math/grade_school_math/data/mytest.jsonl"
+    )
     random.shuffle(questions)
 
-    for data in questions[:100]:
+    for data in questions[:1]:
         question = data['question']
         answer = data['answer']
 
+        print(question)
+        print(answer)
+
         agent_contexts = [[{"role": "user", "content": """Can you solve the following math problem? {} Explain your reasoning. Your final answer should be a single numerical number, in the form \\boxed{{answer}}, at the end of your response. """.format(question)}] for agent in range(agents)]
 
-        for round in range(rounds):
+        for round in tqdm.tqdm(range(rounds)):
             for i, agent_context in enumerate(agent_contexts):
+                print("agent", i)
 
                 if round != 0:
                     agent_contexts_other = agent_contexts[:i] + agent_contexts[i+1:]
                     message = construct_message(agent_contexts_other, question, 2*round - 1)
                     agent_context.append(message)
 
-                completion = openai.ChatCompletion.create(
-                          model="gpt-3.5-turbo-0301",
-                          messages=agent_context,
-                          n=1)
+                completion = client.create_chat_completion(
+                    messages=agent_context,
+                    max_tokens=2048,
+                )
 
                 assistant_message = construct_assistant_message(completion)
+                print(assistant_message)
                 agent_context.append(assistant_message)
 
         generated_description[question] = (agent_contexts, answer)
 
     json.dump(generated_description, open("gsm_{}_{}.json".format(agents, rounds), "w"))
 
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     print(answer)
     print(agent_context)
