@@ -7,6 +7,7 @@ import sys
 
 sys.path.append("..")
 from client import LlamaClient
+import re
 
 client = LlamaClient()
 def parse_bullets(sentence):
@@ -31,6 +32,7 @@ def generate_answer(answer_context):
     try:
         completion = client.create_chat_completion(
             messages=answer_context,
+            max_tokens=140,
         )
     except:
         print("retrying due to an error......")
@@ -63,14 +65,8 @@ def construct_assistant_message(completion):
     return {"role": "assistant", "content": content}
 
 def parse_answer(sentence):
-    parts = sentence.split(" ")
-
-    for part in parts[::-1]:
-        try:
-            answer = float(part)
-            return answer
-        except:
-            continue
+    numbers = re.findall(r'\d+', sentence)
+    return numbers[-1] if numbers else None
 
 
 def most_frequent(List):
@@ -87,13 +83,12 @@ def most_frequent(List):
 
 
 if __name__ == "__main__":
-    answer = parse_answer("My answer is the same as the other agents and AI language model: the result of 12+28*19+6 is 550.")
 
     agents = 3
     rounds = 3
     np.random.seed(0)
 
-    evaluation_round = 10
+    evaluation_round = 1
     scores = []
 
     generated_description = {}
@@ -107,33 +102,41 @@ if __name__ == "__main__":
         content = agent_contexts[0][0]['content']
         question_prompt = "We seek to find the result of {}+{}*{}+{}-{}*{}?".format(a, b, c, d, e, f)
 
+        text_answers = {}
         for round in range(rounds):
+            print(f'debate round{round}')
             for i, agent_context in enumerate(agent_contexts):
+                print(f'agent {i}')
 
                 if round != 0:
                     agent_contexts_other = agent_contexts[:i] + agent_contexts[i+1:]
                     message = construct_message(agent_contexts_other, question_prompt, 2*round - 1)
                     agent_context.append(message)
 
-                    print("message: ", message)
+#                    print("message: ", message['content'])
+#                else:
+#                    print('init message:',agent_context[0]['content'])
 
                 completion = generate_answer(agent_context)
 
                 assistant_message = construct_assistant_message(completion)
                 agent_context.append(assistant_message)
-                print(completion)
+#               print(assistant_message['content'])
 
-        text_answers = []
+            text_answers[round] = []
 
-        for agent_context in agent_contexts:
-            text_answer = string =  agent_context[-1]['content']
-            text_answer = text_answer.replace(",", ".")
-            text_answer = parse_answer(text_answer)
+            for agent_context in agent_contexts:
+                text_answer = string =  agent_context[-1]['content']
+                text_answer = text_answer.replace(",", ".")
+                text_answer = parse_answer(text_answer)
 
-            if text_answer is None:
-                continue
+                if text_answer is None:
+                    continue
 
-            text_answers.append(text_answer)
+                text_answers[round].append(text_answer)
+            print(f'text_answers: {text_answers}')
+        print(f'answer: {answer}')
+        continue
 
         generated_description[(a, b, c, d, e, f)] = (
             agent_contexts,
@@ -153,8 +156,7 @@ if __name__ == "__main__":
 
         print("performance:", np.mean(scores), np.std(scores) / (len(scores) ** 0.5))
 
-    pickle.dump(generated_description, open("math_agents{}_rounds{}.p".format(agents, rounds), "wb"))
-    import pdb
-    pdb.set_trace()
-    print(answer)
-    print(agent_context)
+    # pickle.dump(generated_description, open("math_agents{}_rounds{}.p".format(agents, rounds), "wb"))
+    #print(answer)
+    
+    # print(agent_context)
