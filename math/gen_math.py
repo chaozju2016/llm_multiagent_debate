@@ -34,6 +34,7 @@ def generate_answer(answer_context, client):
         completion = client.create_chat_completion(
                 messages=answer_context,
                 max_tokens=400,
+                # temperature=1,
                 )
     except:
         print("retrying due to an error......")
@@ -76,10 +77,21 @@ def construct_assistant_message(completion):
     content = completion["choices"][0]["message"]["content"]
     return {"role": "assistant", "content": content}
 
-def parse_answer(sentence):
-    numbers = re.findall(r'\d+', sentence)
-    return numbers[-1] if numbers else None
+#def parse_answer(sentence):
+#    numbers = re.findall(r'\d+', sentence)
+#    return numbers[-1] if numbers else None
 
+def parse_answer(sentence):
+    confidence = re.findall(r'My confidence is (\d+)%',sentence)
+
+    answer = re.findall(r'My answer is (\d+)',sentence)
+    answer = answer[-1] if answer else None
+    confidence = confidence[-1] if confidence else None
+    print("--parse_answer--")
+    print("answer:",answer)
+    print("confidence",confidence)
+    print("---")
+    return answer,confidence
 
 def most_frequent(List):
     counter = 0
@@ -113,7 +125,7 @@ if __name__ == "__main__":
             )
     llama_client = LlamaClient(base_url='http://127.0.0.1:{}'.format(args.port))
 
-    evaluation_round = 100
+    evaluation_round = 1
 
     scores = {r:[] for r in range(rounds)}
     results = []
@@ -123,21 +135,23 @@ if __name__ == "__main__":
         a, b, c, d, e, f = np.random.randint(0, args.question_range, size=6)
 
         answer = a + b * c + d - e * f
-        agent_contexts = [[{"role": "user", "content": """What is the result of {}+{}*{}+{}-{}*{}? Make sure to state your answer at the end of the response.""".format(a, b, c, d, e, f)}] for agent in range(agents)]
+        agent_contexts = [[{"role": "user", "content": """What is the result of {}+{}*{}+{}-{}*{}? Make sure to state your answer and your confidence at the end of the response following format strictly.You should state your answer following My answer is *your answer*,For example, you can say My answer is 100.You should follow this format to state your confidence is a integer between 0 and 100 with %,for example, you can say, my confidence is 80%.""".format(a, b, c, d, e, f)}] for agent in range(agents)]
 
         content = agent_contexts[0][0]['content']
         question_prompt = "We seek to find the result of {}+{}*{}+{}-{}*{}?".format(a, b, c, d, e, f)
 
         text_answers = {}
+        text_confidences = {}
+        
         text_answers_acc = {}
         for round in range(rounds):
-            #print(f'debate round{round}')
+            print(f'debate round{round}')
 
             mask_matrix = MaskGenerator.generate(mask_config)
             #print(f'mask:{mask_matrix}')
 
             for i, agent_context in enumerate(agent_contexts):
-                #print(f'agent {i}')
+                print(f'agent {i}')
 
                 if round != 0:
                     agent_contexts_other = agent_contexts[:i] + agent_contexts[i+1:]
@@ -157,20 +171,24 @@ if __name__ == "__main__":
 
                 assistant_message = construct_assistant_message(completion)
                 agent_context.append(assistant_message)
-                #print(assistant_message['content'])
+                print(assistant_message['content'])
 
             text_answers[round] = []
+            text_confidences[round] = []
 
             for agent_context in agent_contexts:
                 text_answer = string =  agent_context[-1]['content']
                 text_answer = text_answer.replace(",", ".")
-                text_answer = parse_answer(text_answer)
+                text_answer,text_confidence = parse_answer(text_answer)
 
                 if text_answer is None:
                     continue
 
                 text_answers[round].append(text_answer)
-            #print(f'text_answers: {text_answers}')
-        #print(f'answer: {answer}')
-        results.append({'eval_round':eval_round,'question':'{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f),'answer':answer,'text_answers':text_answers})
+                text_confidences[round].append(text_confidence)
+            
+            print(f'text_answers: {text_answers}')
+            print(f'text_confidences:{text_confidences}')
+        print(f'correct_answer: {answer}')
+        results.append({'eval_round':eval_round,'question':'{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f),'answer':answer,'text_answers':text_answers,'text_confidences':text_confidences})
     pickle.dump(results,open("math_results_agents{}_rounds{}_ratio{}_range{}.p".format(agents, rounds,visibility_ratio,args.question_range),'wb'))
