@@ -1,13 +1,15 @@
 import json
 import numpy as np
 import random
+import argparse
 import sys
 
 sys.path.append("..")
 from client import LlamaClient
+from mask import MaskConfig, MaskGenerator
+from client import LlamaClient
 import tqdm
 
-client = LlamaClient()
 def construct_message(agents, question, idx):
     if len(agents) == 0:
         return {"role": "user", "content": "Can you double check that your answer is correct. Please reiterate your answer, with your final answer a single numerical number, in the form \\boxed{{answer}}."}
@@ -34,9 +36,16 @@ def read_jsonl(path: str):
         return [json.loads(line) for line in fh.readlines() if line]
 
 if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser(description='math')
+    parser.add_argument('-p', '--port', type=int, default=8080, help='Port number (default: 8080)')
+    parser.add_argument('-r', '--ratio', type=float, default=1.0, help='Ratio value (default: 1.0)')
+    args = parser.parse_args()
+    
     agents = 5
     rounds = 5
     random.seed(0)
+    llama_client = LlamaClient(base_url='http://127.0.0.1:{}'.format(args.port))
 
     generated_description = {}
 
@@ -63,7 +72,7 @@ if __name__ == "__main__":
                     message = construct_message(agent_contexts_other, question, 2*round - 1)
                     agent_context.append(message)
 
-                completion = client.create_chat_completion(
+                completion = llama_client.create_chat_completion(
                     messages=agent_context,
                     max_tokens=2048,
                 )
@@ -76,7 +85,5 @@ if __name__ == "__main__":
 
     json.dump(generated_description, open("gsm_{}_{}.json".format(agents, rounds), "w"))
 
-    # import pdb
-    # pdb.set_trace()
     print(answer)
     print(agent_context)
