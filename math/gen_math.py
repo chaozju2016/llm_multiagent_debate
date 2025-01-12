@@ -87,10 +87,10 @@ def parse_answer(sentence):
     answer = re.findall(r'My answer is (\d+)',sentence)
     answer = answer[-1] if answer else None
     confidence = confidence[-1] if confidence else None
-    print("--parse_answer--")
-    print("answer:",answer)
-    print("confidence",confidence)
-    print("---")
+    # print("--parse_answer--")
+    # print("answer:",answer)
+    # print("confidence",confidence)
+    # print("---")
     return answer,confidence
 
 def most_frequent(List):
@@ -140,15 +140,26 @@ if __name__ == "__main__":
         content = agent_contexts[0][0]['content']
         question_prompt = "We seek to find the result of {}+{}*{}+{}-{}*{}?".format(a, b, c, d, e, f)
 
-        text_answers = {}
-        text_confidences = {}
+        # text_answers = {}
+        # text_confidences = {}
         
-        text_answers_acc = {}
+        # text_answers_acc = {}
+
+        info_of_round = {}
+        change_caculated = []
+        test_answer_this_round = []
+        test_answer_last_round = []
         for round in range(rounds):
             print(f'debate round{round}')
+            info_of_round["round"] = round
 
             mask_matrix = MaskGenerator.generate(mask_config)
             #print(f'mask:{mask_matrix}')
+            info_of_round["text_answer"] = []
+            info_of_round["confidence"] = []
+            info_of_round["answer_change"] = []
+            info_of_round["context"] = []
+            info_of_round["mask_matrix"] = mask_matrix
 
             for i, agent_context in enumerate(agent_contexts):
                 print(f'agent {i}')
@@ -171,24 +182,44 @@ if __name__ == "__main__":
 
                 assistant_message = construct_assistant_message(completion)
                 agent_context.append(assistant_message)
-                print(assistant_message['content'])
+                # print(assistant_message['content'])
 
-            text_answers[round] = []
-            text_confidences[round] = []
+            # text_answers[round] = []
+            # text_confidences[round] = []
 
             for agent_context in agent_contexts:
                 text_answer = string =  agent_context[-1]['content']
                 text_answer = text_answer.replace(",", ".")
+                # print("context:",text_answer)
+                info_of_round["context"].append(text_answer)
+                
                 text_answer,text_confidence = parse_answer(text_answer)
 
-                if text_answer is None:
-                    continue
+                # if text_answer is None:
+                #     continue
+                print("text_answer:",text_answer)
+                
 
-                text_answers[round].append(text_answer)
-                text_confidences[round].append(text_confidence)
+                pre_answer = text_answer
+                info_of_round["text_answer"].append(text_answer)
+                info_of_round["confidence"].append(text_confidence)
             
-            print(f'text_answers: {text_answers}')
-            print(f'text_confidences:{text_confidences}')
-        print(f'correct_answer: {answer}')
-        results.append({'eval_round':eval_round,'question':'{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f),'answer':answer,'text_answers':text_answers,'text_confidences':text_confidences})
+            # pre_answer = []
+            # if round == 0:
+            #     info_of_round["answer_change"] = [0 for _ in text_answer]
+            # else:
+            #     change_in_this_round = [ta ^ pa for ta, pa in zip(text_answer, pre_answer)]
+            
+            
+            print("info_of_round:",info_of_round)
+            results.append(info_of_round)
+                # text_answers[round].append(text_answer)
+                # text_confidences[round].append(text_confidence)
+            
+        #     print(f'text_answers: {text_answers}')
+        #     print(f'text_confidences:{text_confidences}')
+        # print(f'correct_answer: {answer}')
+        
+        # results.append({'eval_round':eval_round,'question':'{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f),'answer':answer,'text_answers':text_answers,'text_confidences':text_confidences})
+    print(results)
     pickle.dump(results,open("math_results_agents{}_rounds{}_ratio{}_range{}.p".format(agents, rounds,visibility_ratio,args.question_range),'wb'))
