@@ -84,7 +84,7 @@ def construct_assistant_message(completion):
 def parse_answer(sentence):
     confidence = re.findall(r'My confidence is (\d+)%',sentence)
 
-    answer = re.findall(r'My answer is (\d+)',sentence)
+    answer = re.findall(r'answer is (\d+)',sentence)
     answer = answer[-1] if answer else None
     confidence = confidence[-1] if confidence else None
     # print("--parse_answer--")
@@ -135,7 +135,7 @@ if __name__ == "__main__":
         a, b, c, d, e, f = np.random.randint(0, args.question_range, size=6)
 
         answer = a + b * c + d - e * f
-        agent_contexts = [[{"role": "user", "content": """What is the result of {}+{}*{}+{}-{}*{}? Make sure to state your answer and your confidence at the end of the response following format strictly.You should state your answer following My answer is *your answer*,For example, you can say My answer is 100.You should follow this format to state your confidence is a integer between 0 and 100 with %,for example, you can say, my confidence is 80%.""".format(a, b, c, d, e, f)}] for agent in range(agents)]
+        agent_contexts = [[{"role": "user", "content": """What is the result of {}+{}*{}+{}-{}*{}? Make sure to state your answer and your confidence at the end of the response following format strictly.You should state your answer following this format: My answer is *your answer*,For example, you can say My answer is 100.You should follow this format to state your confidence is a integer between 0 and 100 with %,for example, you can say, my confidence is 80%.""".format(a, b, c, d, e, f)}] for agent in range(agents)]
 
         content = agent_contexts[0][0]['content']
         question_prompt = "We seek to find the result of {}+{}*{}+{}-{}*{}?".format(a, b, c, d, e, f)
@@ -146,9 +146,9 @@ if __name__ == "__main__":
         # text_answers_acc = {}
 
         info_of_round = {}
-        change_caculated = []
-        test_answer_this_round = []
-        test_answer_last_round = []
+        change_caculated = [0] * agents
+        text_answer_this_round = [None] * agents
+        text_answer_last_round = [None] * agents
         for round in range(rounds):
             print(f'debate round{round}')
             info_of_round["round"] = round
@@ -200,15 +200,25 @@ if __name__ == "__main__":
                 print("text_answer:",text_answer)
                 
 
-                pre_answer = text_answer
+                
                 info_of_round["text_answer"].append(text_answer)
                 info_of_round["confidence"].append(text_confidence)
             
-            # pre_answer = []
-            # if round == 0:
-            #     info_of_round["answer_change"] = [0 for _ in text_answer]
-            # else:
-            #     change_in_this_round = [ta ^ pa for ta, pa in zip(text_answer, pre_answer)]
+            text_answer_last_round = text_answer_this_round
+            text_answer_this_round = info_of_round["text_answer"]
+            
+            
+            if round == 0:
+                info_of_round["answer_change"] = [0] * agents
+            else:
+                change = [0] * agents
+                for agent in range(agents):
+                    if text_answer_this_round[agent] == text_answer_last_round[agent]:
+                        change[agent] = 0
+                    else:
+                        change[agent] = 1
+                change_caculated = [x + y for x, y in zip(change_caculated, change)]
+                info_of_round["answer_change"] = change_caculated
             
             
             print("info_of_round:",info_of_round)
