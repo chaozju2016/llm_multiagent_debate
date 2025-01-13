@@ -42,30 +42,30 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--ratio', type=float, default=1.0, help='Ratio value (default: 1.0)')
     args = parser.parse_args()
     
-    agents = 5
-    rounds = 5
+    agents = 3
+    rounds = 2
     random.seed(0)
     llama_client = LlamaClient(base_url='http://127.0.0.1:{}'.format(args.port))
 
     generated_description = {}
 
     questions = read_jsonl(
-        "C:/Users/cwang/Documents/llm_multiagent_debate/gsm/grade-school-math/grade_school_math/data/mytest.jsonl"
+        "grade-school-math/grade_school_math/data/test.jsonl"
     )
     random.shuffle(questions)
 
-    for data in questions[:1]:
+    for data in tqdm.tqdm(questions[:100]):
         question = data['question']
         answer = data['answer']
 
-        print(question)
-        print(answer)
+        #print(f'question:\n{question}')
+        #print(f'answer:\n{answer}')
 
         agent_contexts = [[{"role": "user", "content": """Can you solve the following math problem? {} Explain your reasoning. Your final answer should be a single numerical number, in the form \\boxed{{answer}}, at the end of your response. """.format(question)}] for agent in range(agents)]
 
-        for round in tqdm.tqdm(range(rounds)):
+        for round in range(rounds):
             for i, agent_context in enumerate(agent_contexts):
-                print("agent", i)
+                #print("agent", i)
 
                 if round != 0:
                     agent_contexts_other = agent_contexts[:i] + agent_contexts[i+1:]
@@ -78,12 +78,10 @@ if __name__ == "__main__":
                 )
 
                 assistant_message = construct_assistant_message(completion)
-                print(assistant_message)
+                #print(assistant_message['content'])
                 agent_context.append(assistant_message)
 
         generated_description[question] = (agent_contexts, answer)
 
     json.dump(generated_description, open("gsm_{}_{}.json".format(agents, rounds), "w"))
 
-    print(answer)
-    print(agent_context)

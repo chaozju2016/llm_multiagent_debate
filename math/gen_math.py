@@ -33,7 +33,8 @@ def generate_answer(answer_context, client):
     try:
         completion = client.create_chat_completion(
                 messages=answer_context,
-                max_tokens=400,
+                max_tokens=200,
+                temperature=0,
                 )
     except:
         print("retrying due to an error......")
@@ -51,12 +52,13 @@ def construct_message_with_mask(agents, question, idx, agent_mask):
     # 检查是否所有其他agents都被mask
     all_masked = not np.any(agent_mask)
     if all_masked:
-        prefix_string = ("All other agents' responses are masked in this round. "
-                "Please rethink the problem independently and carefully. "
-                "You might want to: \n"
-                "1. Double check your previous calculation\n"
-                "2. Consider if there are alternative approaches\n"
-                "3. Be extra careful about the order of operations\n\n")
+        prefix_string = "Can you verify that your answer is correct. Please reiterate your answer, making sure to  state your answer at the end of the response."
+        #        prefix_string = ("All other agents' responses are masked in this round. "
+#                "Please rethink the problem independently and carefully. "
+#                "You might want to: \n"
+#                "1. Double check your previous calculation\n"
+#                "2. Consider if there are alternative approaches\n"
+#                "3. Be extra careful about the order of operations\n\n")
     else:
         prefix_string = "These are the recent/updated opinions from other agents: "
         for agent_idx, agent in enumerate(agents):
@@ -67,7 +69,7 @@ def construct_message_with_mask(agents, question, idx, agent_mask):
             else:
                 prefix_string = prefix_string + "\n\n [This agent's response is masked]"
 
-    prefix_string = prefix_string + "\n\n Use these opinions carefully as additional advice, can you provide an updated answer? Make sure to state your answer at the end of the response.".format(question)
+        prefix_string = prefix_string + "\n\n Use these opinions carefully as additional advice, can you provide an updated answer? Make sure to state your answer at the end of the response."
 
     return {"role": "user", "content": prefix_string}
 
@@ -77,7 +79,7 @@ def construct_assistant_message(completion):
     return {"role": "assistant", "content": content}
 
 def parse_answer(sentence):
-    numbers = re.findall(r'\d+', sentence)
+    numbers = re.findall(r'-?\d+', sentence)
     return numbers[-1] if numbers else None
 
 
@@ -99,12 +101,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='math')
     parser.add_argument('-p', '--port', type=int, default=8080, help='Port number (default: 8080)')
     parser.add_argument('-r', '--ratio', type=float, default=1.0, help='Ratio value (default: 1.0)')
+    parser.add_argument('-er', '--eval_rounds', type=int, default=30, help='Evaluation rounds (default: 30)')
+    parser.add_argument('-dr', '--debate_rounds', type=int, default=3, help='Debate rounds (default: 3)')
     parser.add_argument('-q', '--question_range', type=int, default=30, help='Question range (default: 30)')
     args = parser.parse_args()
 
     agents = 3
-    rounds = 8
-    np.random.seed(0)
+    debate_round = args.debate_rounds
+    np.random.seed(4125)
     visibility_ratio=args.ratio
     mask_config = MaskConfig(
             num_agents=agents,
@@ -113,9 +117,9 @@ if __name__ == "__main__":
             )
     llama_client = LlamaClient(base_url='http://127.0.0.1:{}'.format(args.port))
 
-    evaluation_round = 100
+    evaluation_round = args.eval_rounds
 
-    scores = {r:[] for r in range(rounds)}
+    scores = {r:[] for r in range(debate_round)}
     results = []
 
 
@@ -130,7 +134,7 @@ if __name__ == "__main__":
 
         text_answers = {}
         text_answers_acc = {}
-        for round in range(rounds):
+        for round in range(debate_round):
             #print(f'debate round{round}')
 
             mask_matrix = MaskGenerator.generate(mask_config)
@@ -173,4 +177,4 @@ if __name__ == "__main__":
             #print(f'text_answers: {text_answers}')
         #print(f'answer: {answer}')
         results.append({'eval_round':eval_round,'question':'{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f),'answer':answer,'text_answers':text_answers})
-    pickle.dump(results,open("math_results_agents{}_rounds{}_ratio{}_range{}.p".format(agents, rounds,visibility_ratio,args.question_range),'wb'))
+    pickle.dump(results,open("math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))

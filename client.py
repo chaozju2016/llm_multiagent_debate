@@ -31,6 +31,7 @@ class LlamaClient(OpenAI):
         data = {
             "prompt": prompt,
             "n_predict": max_tokens,
+            "repeat_penalty": 1.0,
             "temperature": temperature,
             "stop": stop or ["user:","assistant:","Human:", "Assistant:"],
         }
@@ -82,20 +83,18 @@ class LlamaClient(OpenAI):
 # 使用示例
 def main():
     # 创建客户端实例
-    client = LlamaClient()
+    client = LlamaClient(base_url="http://127.0.0.1:8090")
 
     # 示例 1: 使用 completion 接口
-    completion = client.create_completion(
-        prompt="Human: 你好,请介绍一下自己\nAssistant:", max_tokens=1280, temperature=0.7
-    )
-    print("\n=== Completion 示例 ===")
-    print(completion)
+    #completion = client.create_completion(
+    #    prompt="Human: 你好,请介绍一下自己\nAssistant:", max_tokens=1280, temperature=0.7
+    #)
+    #print("\n=== Completion 示例 ===")
     # print(completion["choices"][0]["text"])
-    exit()
     # 示例 2: 使用 chat completion 接口
     messages = [{"role": "user", "content": "你好,请介绍一下自己"}]
     chat_completion = client.create_chat_completion(
-        messages=messages, max_tokens=128, temperature=0.7
+        messages=messages, max_tokens=1280, temperature=0.7
     )
     print("\n=== Chat Completion 示例 ===")
     print(chat_completion["choices"][0]["message"]["content"])

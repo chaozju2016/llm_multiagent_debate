@@ -35,7 +35,9 @@ class MaskGenerator:
             np.ndarray: Boolean mask matrix of shape (num_agents, num_agents)
         """
         if config.strategy == 'fixed_ratio':
-            return MaskGenerator._fixed_ratio_mask(config)
+            mask = MaskGenerator._fixed_ratio_mask(config)
+#            mask = np.logical_or(np.eye(mask.shape[0],mask.shape[1]), mask)
+            return mask
         elif config.strategy == 'independent':
             return MaskGenerator._independent_mask(config)
         elif config.strategy == 'symmetric':

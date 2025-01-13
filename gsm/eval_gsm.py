@@ -120,7 +120,7 @@ def most_frequent(List):
 
 if __name__ == "__main__":
     response_dict = json.load(
-        open("C:/Users/cwang/Documents/llm_multiagent_debate/gsm/gsm_3_2.json", "r")
+        open("gsm_3_2.json", "r")
     )
 
     questions = list(response_dict.keys())

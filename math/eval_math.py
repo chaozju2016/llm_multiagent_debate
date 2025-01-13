@@ -8,7 +8,7 @@ def analyze_rounds(filename):
 
     # 初始化存储每轮统计数据的字典
     round_stats = {}
-    for round_num in range(8):  # 0-7轮
+    for round_num in range(5):  # 0-7轮
         correct_count = 0
         total_count = 0
         errors = []
@@ -40,10 +40,12 @@ def analyze_rounds(filename):
     return round_stats
 
 # 分析所有比例的文件
-ratios = [0.0, 0.2, 0.5, 0.8, 1.0]
+ratios = [0.0,0.2,0.5]
+#ratios = [0.0, 0.2, 0.5, 0.8, 1.0]
 
 for ratio in ratios:
-    filename = f'math_results_agents3_rounds8_ratio{ratio}_range100.p'
+    #filename = f'range30_round100/math_results_agents3_rounds8_ratio{ratio}_range30.p'
+    filename = f'math_results_er30_agents3_dr5_ratio{ratio}_range30.p'
     print(f"\nAnalyzing results for ratio {ratio}:")
 
     try:
