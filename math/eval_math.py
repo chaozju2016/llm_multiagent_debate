@@ -40,12 +40,12 @@ def analyze_rounds(filename):
     return round_stats
 
 # 分析所有比例的文件
-ratios = [0.0,0.2,0.5]
+ratios = [0.0]
 #ratios = [0.0, 0.2, 0.5, 0.8, 1.0]
 
 for ratio in ratios:
     #filename = f'range30_round100/math_results_agents3_rounds8_ratio{ratio}_range30.p'
-    filename = f'math_results_er30_agents3_dr5_ratio{ratio}_range30.p'
+    filename = f'math_results_er30_agents3_dr10_ratio{ratio}_range100.p'
     print(f"\nAnalyzing results for ratio {ratio}:")
 
     try:
