@@ -18,15 +18,12 @@ def running_N_circles(N, running_file, output_dir):
         print(f"Running {running_file}, iteration {i}...")
 
         # Run the target file
-        # Todo:默认已经开了端口9090了. 9090要不要参数化？
+        # 默认已经开了服务了 9090要不要参数化
         subprocess.run(["python3.8", running_file, "-p", "9090"])
 
         # Rename the generated result.p file to avoid overwriting
-        # Todo:orginal_file记得改动。文件名要不要参数化？
-        agent_num = 3
-        rounds = 8
-        ratio = "1.0"
-        original_file = f"math_results_agents{agent_num}_rounds{rounds}_ratio{ratio}_range30.p"
+        # 文件名要不要参数化
+        original_file = "math_results_agents3_rounds8_ratio1.0_range30.p"
         if os.path.exists(original_file):
             new_file_name = f"result_{i}.p"
             new_file_path = os.path.join(output_dir, new_file_name)

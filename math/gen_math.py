@@ -81,16 +81,49 @@ def construct_assistant_message(completion):
 #    numbers = re.findall(r'\d+', sentence)
 #    return numbers[-1] if numbers else None
 
-def parse_answer(sentence):
-    confidence = re.findall(r'My confidence is (\d+)%',sentence)
+# def parse_answer(sentence):
+    
+#     confidence = re.findall(r'My confidence is (\d+)%',sentence)
 
-    answer = re.findall(r'answer is (\d+)',sentence)
-    answer = answer[-1] if answer else None
-    confidence = confidence[-1] if confidence else None
-    # print("--parse_answer--")
-    # print("answer:",answer)
-    # print("confidence",confidence)
-    # print("---")
+#     answer = re.findall(r'answer is (\d+)',sentence)
+#     answer = answer[-1] if answer else None
+#     confidence = confidence[-1] if confidence else None
+#     # print("--parse_answer--")
+#     # print("answer:",answer)
+#     # print("confidence",confidence)
+#     # print("---")
+#     return answer,confidence
+def parse_answer(sentence):
+    int_matches_formatted = re.findall(r"My answer is (-?\d+(?:\.\d+)?)", sentence)
+    float_matches_formatted = re.findall(r"My confidence is (-?\d+\.\d+)", sentence)
+    int_matches = re.findall(r'(?<!\.)\b-?\d+\b(?!\.\d|%)', sentence)
+    float_matches = re.findall(r'-?\d+\.\d+', sentence)
+    
+    if int_matches_formatted:
+        print("answer-textformat-get!")
+        answer = int(int_matches_formatted[-1])
+    elif int_matches:
+        print("answer-integer-get!")
+        answer = int(int_matches[-1])
+    else:
+        print("Cannot find answer")
+        answer = None
+    
+    if float_matches_formatted:
+        print("confidence-textformat-get!")
+        print()
+        confidence = float(float_matches_formatted[-1])
+    elif float_matches:
+        print("confidence-float-get!")
+        confidence = float(float_matches[-1])
+    else:
+        print("Cannot find confidence")
+        confidence = None
+
+    
+    # 提取最后一个浮点数和整数
+    # answer = int(int_matches[-1]) if int_matches else None
+    # confidence = float(float_matches[-1]) if float_matches else None
     return answer,confidence
 
 def most_frequent(List):
@@ -135,7 +168,7 @@ if __name__ == "__main__":
         a, b, c, d, e, f = np.random.randint(0, args.question_range, size=6)
 
         answer = a + b * c + d - e * f
-        agent_contexts = [[{"role": "user", "content": """What is the result of {}+{}*{}+{}-{}*{}? Make sure to state your answer and your confidence at the end of the response following format strictly.You should state your answer following this format: My answer is *your answer*,For example, you can say My answer is 100.You should follow this format to state your confidence is a integer between 0 and 100 with %,for example, you can say, my confidence is 80%.""".format(a, b, c, d, e, f)}] for agent in range(agents)]
+        agent_contexts = [[{"role": "user", "content": """What is the result of {}+{}*{}+{}-{}*{}? Make sure to state your answer and your confidence at the end of the response following format strictly.You should state your answer following this format: My answer is *your answer*,For example, you must say in this format:My answer is 100.You must follow this format to state your confidence is a float between 0 and 1 with dot,for example, you can say, my confidence is 0.8  """.format(a, b, c, d, e, f)}] for agent in range(agents)]
 
         content = agent_contexts[0][0]['content']
         question_prompt = "We seek to find the result of {}+{}*{}+{}-{}*{}?".format(a, b, c, d, e, f)
