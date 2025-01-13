@@ -78,26 +78,11 @@ def construct_assistant_message(completion):
     content = completion["choices"][0]["message"]["content"]
     return {"role": "assistant", "content": content}
 
-#def parse_answer(sentence):
-#    numbers = re.findall(r'\d+', sentence)
-#    return numbers[-1] if numbers else None
 
-# def parse_answer(sentence):
-    
-#     confidence = re.findall(r'My confidence is (\d+)%',sentence)
-
-#     answer = re.findall(r'answer is (\d+)',sentence)
-#     answer = answer[-1] if answer else None
-#     confidence = confidence[-1] if confidence else None
-#     # print("--parse_answer--")
-#     # print("answer:",answer)
-#     # print("confidence",confidence)
-#     # print("---")
-#     return answer,confidence
 def parse_answer(sentence):
     int_matches_formatted = re.findall(r"My answer is (-?\d+(?:\.\d+)?)", sentence)
     float_matches_formatted = re.findall(r"My confidence is (-?\d+\.\d+)", sentence)
-    int_matches = re.findall(r'(?<!\.)\b-?\d+\b(?!\.\d|%)', sentence)
+    int_matches = re.findall(r'(?<![\d.])-?\b\d+\b(?!\.\d|%)', sentence)
     float_matches = re.findall(r'-?\d+\.\d+', sentence)
     
     if int_matches_formatted:
