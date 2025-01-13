@@ -1,3 +1,4 @@
+import copy
 import json
 import numpy as np
 import time
@@ -34,7 +35,7 @@ def generate_answer(answer_context, client):
         completion = client.create_chat_completion(
                 messages=answer_context,
                 max_tokens=400,
-                # temperature=1,
+                temperature=0,
                 )
     except:
         print("retrying due to an error......")
@@ -100,24 +101,24 @@ def parse_answer(sentence):
     float_matches = re.findall(r'-?\d+\.\d+', sentence)
     
     if int_matches_formatted:
-        print("answer-textformat-get!")
+        # print("answer-textformat-get!")
         answer = int(int_matches_formatted[-1])
     elif int_matches:
-        print("answer-integer-get!")
+        # print("answer-integer-get!")
         answer = int(int_matches[-1])
     else:
-        print("Cannot find answer")
+        # print("Cannot find answer")
         answer = None
     
     if float_matches_formatted:
-        print("confidence-textformat-get!")
-        print()
+        # print("confidence-textformat-get!")
+        # print()
         confidence = float(float_matches_formatted[-1])
     elif float_matches:
-        print("confidence-float-get!")
+        # print("confidence-float-get!")
         confidence = float(float_matches[-1])
     else:
-        print("Cannot find confidence")
+        # print("Cannot find confidence")
         confidence = None
 
     
@@ -148,7 +149,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     agents = 3
-    rounds = 8
+    rounds = 10
     np.random.seed(0)
     visibility_ratio=args.ratio
     mask_config = MaskConfig(
@@ -183,7 +184,7 @@ if __name__ == "__main__":
         text_answer_this_round = [None] * agents
         text_answer_last_round = [None] * agents
         for round in range(rounds):
-            print(f'debate round{round}')
+            # print(f'debate round{round}')
             info_of_round["round"] = round
 
             mask_matrix = MaskGenerator.generate(mask_config)
@@ -195,7 +196,7 @@ if __name__ == "__main__":
             info_of_round["mask_matrix"] = mask_matrix
 
             for i, agent_context in enumerate(agent_contexts):
-                print(f'agent {i}')
+                # print(f'agent {i}')
 
                 if round != 0:
                     agent_contexts_other = agent_contexts[:i] + agent_contexts[i+1:]
@@ -230,7 +231,7 @@ if __name__ == "__main__":
 
                 # if text_answer is None:
                 #     continue
-                print("text_answer:",text_answer)
+                # print("text_answer:",text_answer)
                 
 
                 
@@ -254,15 +255,12 @@ if __name__ == "__main__":
                 info_of_round["answer_change"] = change_caculated
             
             
-            print("info_of_round:",info_of_round)
-            results.append(info_of_round)
+            # print("info_of_round:",info_of_round)
+            results.append(copy.deepcopy(info_of_round))
+            # print("results:",results)
                 # text_answers[round].append(text_answer)
                 # text_confidences[round].append(text_confidence)
             
-        #     print(f'text_answers: {text_answers}')
-        #     print(f'text_confidences:{text_confidences}')
-        # print(f'correct_answer: {answer}')
-        
-        # results.append({'eval_round':eval_round,'question':'{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f),'answer':answer,'text_answers':text_answers,'text_confidences':text_confidences})
-    print(results)
+       
+    #print(results)
     pickle.dump(results,open("math_results_agents{}_rounds{}_ratio{}_range{}.p".format(agents, rounds,visibility_ratio,args.question_range),'wb'))
