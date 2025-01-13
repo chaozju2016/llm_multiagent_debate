@@ -1,7 +1,7 @@
 from openai import OpenAI
 from typing import List, Optional, Any, Dict
 import requests
-
+import json
 
 class LlamaClient(OpenAI):
     """自定义 OpenAI 客户端以支持 llama.cpp-server"""
@@ -11,45 +11,6 @@ class LlamaClient(OpenAI):
             base_url=base_url, api_key="not-needed"  # llama.cpp-server 不需要 API key
         )
 
-    def chat_completion_to_prompt(self, messages: List[Dict[str, str]]) -> str:
-        """将 ChatCompletion 格式的消息转换为普通文本提示词"""
-        prompt = ""
-        for message in messages:
-            role = message["role"]
-            content = message["content"]
-            prompt += f"{role}: {content}\n"
-        return prompt + "assistant:"
-
-    def create_completion(
-        self,
-        prompt: str,
-        max_tokens: int = 128,
-        temperature: float = 0.8,
-        stop: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        """创建文本补全"""
-        data = {
-            "prompt": prompt,
-            "n_predict": max_tokens,
-            "repeat_penalty": 1.0,
-            "temperature": temperature,
-            "stop": stop or ["user:","assistant:","Human:", "Assistant:"],
-        }
-
-        response = requests.post(f"{self.base_url}/completion", json=data)
-        response.raise_for_status()
-
-        completion = response.json()
-        return {
-            "choices": [
-                {
-                    "text": completion.get("content", ""),
-                    "finish_reason": (
-                        "stop" if completion.get("stopped_eos", False) else "length"
-                    ),
-                }
-            ]
-        }
 
     def create_chat_completion(
         self,
@@ -58,46 +19,41 @@ class LlamaClient(OpenAI):
         temperature: float = 0.8,
         stop: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """创建对话补全"""
-        prompt = self.chat_completion_to_prompt(messages)
-        completion = self.create_completion(
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stop=stop,
-        )
-
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": completion["choices"][0]["text"].strip(),
-                    },
-                    "finish_reason": completion["choices"][0]["finish_reason"],
-                }
-            ]
+        data = {
+            "messages": messages,
+            "n_predict": max_tokens,
+            "repeat_penalty": 1.3,
+            "temperature": temperature,
+            "stop": stop or ["user:","assistant:","Human:", "Assistant:","  .","\n\n\n"],
         }
+        response = requests.post(f"{self.base_url}/chat/completions", json=data)
+        response.raise_for_status()
+        completion = response.json()
 
+        return completion
 
 # 使用示例
 def main():
     # 创建客户端实例
-    client = LlamaClient(base_url="http://127.0.0.1:8090")
+    client = LlamaClient(base_url="http://127.0.0.1:8081")
 
-    # 示例 1: 使用 completion 接口
-    #completion = client.create_completion(
-    #    prompt="Human: 你好,请介绍一下自己\nAssistant:", max_tokens=1280, temperature=0.7
-    #)
-    #print("\n=== Completion 示例 ===")
-    # print(completion["choices"][0]["text"])
-    # 示例 2: 使用 chat completion 接口
-    messages = [{"role": "user", "content": "你好,请介绍一下自己"}]
-    chat_completion = client.create_chat_completion(
-        messages=messages, max_tokens=1280, temperature=0.7
+    messages = [
+            {
+                'role': 'system', 
+                'content': 'Make sure to state your answer and your confidence at the end of the response following format strictly.You should state your answer following this format:\nMy answer is *your answer*\nFor example, you must say in this format:My answer is 100.\nYou must follow this format to state your confidence is a float in [0,1] with at most two digits:\nFor example, you can say, my confidence is 0.85.\n'
+            },
+            {
+                'role': 'user', 
+                'content': 'What is the result of 52+77*46+60-69*26?'
+            }
+        ]
+    completion = client.create_chat_completion(
+        messages=messages, max_tokens=1280, temperature=0
     )
     print("\n=== Chat Completion 示例 ===")
-    print(chat_completion["choices"][0]["message"]["content"])
+    print(f'completion\n{json.dumps(completion,indent=2)}')
+    print("\n=== message 示例 ===")
+    print(completion["choices"][0]["message"]["content"])
 
 
 if __name__ == "__main__":
