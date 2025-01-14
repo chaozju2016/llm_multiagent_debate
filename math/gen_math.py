@@ -12,75 +12,76 @@ sys.path.append("..")
 from client import LlamaClient
 from mask import MaskConfig, MaskGenerator
 
-def parse_bullets(sentence):
-    bullets_preprocess = sentence.split("\n")
-    bullets = []
+SYSTEM_MESSAGE = (
+        "Make sure to state your answer and your confidence at the end of the response following format strictly."
+        "You should state your answer following this format:\n"
+        "My answer is *your answer*\n"
+        "For example, you must say in this format:My answer is 100.\n"
+        "You must follow this format to state your confidence is a float in [0,1] with at most two digits:\n"
+        "My confidence is *your confidence*\n"
+        "For example, you can say, my confidence is 0.85.\n"
+        )
 
-    for bullet in bullets_preprocess:
-        try:
-            idx = bullet.find(next(filter(str.isalpha, bullet)))
-        except:
-            continue
-
-        bullet = bullet[idx:]
-
-        if len(bullet) != 0:
-            bullets.append(bullet)
-
-    return bullets
 
 
 def generate_answer(answer_context, client):
     try:
         completion = client.create_chat_completion(
                 messages=answer_context,
-                max_tokens=200,
+                max_tokens=1024,
                 temperature=0,
                 )
-    except:
-        print("retrying due to an error......")
+    except Exception as e:
+        print("retrying due to an error:",e)
         time.sleep(20)
         return generate_answer(answer_context, client)
 
     return completion
 
 
-def construct_message_with_mask(agents, question, idx, agent_mask):
+def construct_message_with_mask(agent_contexts_other, idx, agent_mask):
 
-    # Use introspection in the case in which there are no other agents.
-    if len(agents) == 0:
-        return {"role": "user", "content": "Can you verify that your answer is correct. Please reiterate your answer, making sure to state your answer at the end of the response."}
-    # 检查是否所有其他agents都被mask
     all_masked = not np.any(agent_mask)
-    if all_masked:
-        prefix_string = "Can you verify that your answer is correct. Please reiterate your answer, making sure to  state your answer at the end of the response."
-        #        prefix_string = ("All other agents' responses are masked in this round. "
-#                "Please rethink the problem independently and carefully. "
-#                "You might want to: \n"
-#                "1. Double check your previous calculation\n"
-#                "2. Consider if there are alternative approaches\n"
-#                "3. Be extra careful about the order of operations\n\n")
+    # Use introspection in the case in which there are no other agents.
+    if len(agent_contexts_other) == 0 or all_masked:
+        messages = [
+                {
+                    "role": "system",
+                    "content": SYSTEM_MESSAGE,
+                },
+                {
+                    "role": "user", 
+                    "content": "Can you verify that your answer is correct? Please reiterate your answer."
+                },
+            ]
     else:
         prefix_string = "These are the recent/updated opinions from other agents: "
-        for agent_idx, agent in enumerate(agents):
+        for agent_idx, agent in enumerate(agent_contexts_other):
             if agent_mask[agent_idx]:  # 如果当前agent可见
                 agent_response = agent[idx]["content"]
-                response = "\n\n One agent response: ```{}```".format(agent_response)
+                response = "\n\n Agent {} response: ```{}```".format(agent_idx, agent_response)
                 prefix_string = prefix_string + response
             else:
-                prefix_string = prefix_string + "\n\n [This agent's response is masked]"
+                prefix_string = prefix_string #+ "\n\n [This agent's response is masked]"
 
-        prefix_string = prefix_string + "\n\n Use these opinions carefully as additional advice, can you provide an updated answer? Make sure to state your answer at the end of the response."
+        messages = [
+                {
+                    "role": "system",
+                    "content": SYSTEM_MESSAGE,
+                },
+                {
+                    "role": "user",
+                    "content": prefix_string + "\n\n Use these opinions carefully as additional advice, can you provide an updated answer?"
+                },
+            ]
 
-    return {"role": "user", "content": prefix_string}
+    return messages 
 
 
-def construct_assistant_message(completion):
-    content = completion["choices"][0]["message"]["content"]
-    return {"role": "assistant", "content": content}
 
 
 def parse_answer(sentence):
+    #print(f'parsing\n{sentence}')
     int_matches_formatted = re.findall(r"My answer is (-?\d+(?:\.\d+)?)", sentence)
     float_matches_formatted = re.findall(r"My confidence is (-?\d+\.\d+)", sentence)
     int_matches = re.findall(r'(?<![\d.])-?\b\d+\b(?!\.\d|%)', sentence)
@@ -108,27 +109,13 @@ def parse_answer(sentence):
         confidence = None
 
     
-    # 提取最后一个浮点数和整数
-    # answer = int(int_matches[-1]) if int_matches else None
-    # confidence = float(float_matches[-1]) if float_matches else None
     return answer,confidence
-
-def most_frequent(List):
-    counter = 0
-    num = List[0]
-
-    for i in List:
-        current_frequency = List.count(i)
-        if current_frequency > counter:
-            counter = current_frequency
-            num = i
-
-    return num
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='math')
+    parser.add_argument('-a', '--agent', type=int, default=3, help='Agent number (default: 3)')
     parser.add_argument('-p', '--port', type=int, default=8080, help='Port number (default: 8080)')
     parser.add_argument('-r', '--ratio', type=float, default=1.0, help='Ratio value (default: 1.0)')
     parser.add_argument('-er', '--eval_rounds', type=int, default=30, help='Evaluation rounds (default: 30)')
@@ -136,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument('-q', '--question_range', type=int, default=30, help='Question range (default: 30)')
     args = parser.parse_args()
 
-    agents = 3
+    agents = args.agent
     debate_round = args.debate_rounds
     np.random.seed(4125)
     visibility_ratio=args.ratio
@@ -149,25 +136,40 @@ if __name__ == "__main__":
 
     evaluation_round = args.eval_rounds
 
-    scores = {r:[] for r in range(debate_round)}
-    results = []
-
+    results = {}
 
     for eval_round in tqdm(range(evaluation_round)):
         a, b, c, d, e, f = np.random.randint(0, args.question_range, size=6)
-
         answer = a + b * c + d - e * f
-        agent_contexts = [[{"role": "user", "content": """What is the result of {}+{}*{}+{}-{}*{}? Make sure to state your answer and your confidence at the end of the response following format strictly.You should state your answer following this format: My answer is *your answer*,For example, you must say in this format:My answer is 100.You must follow this format to state your confidence is a float between 0 and 1 with dot,for example, you can say, my confidence is 0.8  """.format(a, b, c, d, e, f)}] for agent in range(agents)]
+        question = '{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f)
+        #print(f'question: {question}, answer: {answer}')
+        
+        agent_contexts = [
+                [
+                    {
+                        "role": "system",
+                        "content": SYSTEM_MESSAGE
+                    },
+                    {
+                        "role": "user", 
+                        "content": f"What is the result of {question}?"
+                    }
+                ] for agent in range(agents)]
 
         content = agent_contexts[0][0]['content']
-        question_prompt = "We seek to find the result of {}+{}*{}+{}-{}*{}?".format(a, b, c, d, e, f)
+
+        results[eval_round] = {
+                'question':question,
+                'answer':answer,
+                'states':[],
+            }
 
         info_of_round = {}
         change_caculated = [0] * agents
         text_answer_this_round = [None] * agents
         text_answer_last_round = [None] * agents
         for round in range(debate_round):
-            # print(f'debate round{round}')
+            #print(f'debate round{round}')
             info_of_round["round"] = round
 
             mask_matrix = MaskGenerator.generate(mask_config)
@@ -179,45 +181,29 @@ if __name__ == "__main__":
             info_of_round["mask_matrix"] = mask_matrix
 
             for i, agent_context in enumerate(agent_contexts):
-                # print(f'agent {i}')
+                #print(f'agent {i}')
 
                 if round != 0:
                     agent_contexts_other = agent_contexts[:i] + agent_contexts[i+1:]
-                    message = construct_message_with_mask(
+                    messages = construct_message_with_mask(
                             agent_contexts_other,
-                            question_prompt,
-                            2*round - 1,
+                            # 3 stands for [sys, user, assistant]
+                            3*round - 1,
                             mask_matrix[i],
                             )
-                    agent_context.append(message)
-
-#                    print("message: ", message['content'])
-#                else:
-#                    print('init message:',agent_context[0]['content'])
-
-                completion = generate_answer(agent_context, llama_client)
-
-                assistant_message = construct_assistant_message(completion)
-                agent_context.append(assistant_message)
-                # print(assistant_message['content'])
-
-            # text_answers[round] = []
-            # text_confidences[round] = []
-
-            for agent_context in agent_contexts:
-                text_answer = string =  agent_context[-1]['content']
-                text_answer = text_answer.replace(",", ".")
-                # print("context:",text_answer)
-                info_of_round["context"].append(text_answer)
+                    agent_context = agent_context + messages
+                    #agent_context.append(messages)
+                #print(f'agent_context:{json.dumps(agent_context[-3:],indent=2)}')
                 
-                text_answer,text_confidence = parse_answer(text_answer)
-
-                # if text_answer is None:
-                #     continue
-                # print("text_answer:",text_answer)
+                #[-2:] stands for latest [sys, user]
+                completion = generate_answer(agent_context[-3:], llama_client)
+                assistant_message = completion["choices"][0]["message"]["content"]
+                #print(assistant_message)
+                agent_context.append({"role": "assistant", "content": assistant_message})
                 
-
-                
+                text_answer,text_confidence = parse_answer(assistant_message)
+                #print(f'answer {text_answer}, conf: {text_confidence}')
+                info_of_round["context"].append(assistant_message)
                 info_of_round["text_answer"].append(text_answer)
                 info_of_round["confidence"].append(text_confidence)
             
@@ -238,12 +224,6 @@ if __name__ == "__main__":
                 info_of_round["answer_change"] = change_caculated
             
             
-            # print("info_of_round:",info_of_round)
-            results.append(copy.deepcopy(info_of_round))
-            # print("results:",results)
-                # text_answers[round].append(text_answer)
-                # text_confidences[round].append(text_confidence)
-            
-       
+            results[eval_round]['states'].append(info_of_round)
     #print(results)
-    pickle.dump(results,open("math_results_agents{}_rounds{}_ratio{}_range{}.p".format(agents, rounds,visibility_ratio,args.question_range),'wb'))
+    pickle.dump(results,open("math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
