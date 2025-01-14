@@ -84,15 +84,16 @@ def parse_answer(sentence):
     #print(f'parsing\n{sentence}')
     int_matches_formatted = re.findall(r"My answer is (-?\d+(?:\.\d+)?)", sentence)
     float_matches_formatted = re.findall(r"My confidence is (-?\d+\.\d+)", sentence)
+    
     int_matches = re.findall(r'(?<![\d.])-?\b\d+\b(?!\.\d|%)', sentence)
     float_matches = re.findall(r'-?\d+\.\d+', sentence)
     
     if int_matches_formatted:
         # print("answer-textformat-get!")
-        answer = int(int_matches_formatted[-1])
+        answer = int( float(int_matches_formatted[-1]))
     elif int_matches:
         # print("answer-integer-get!")
-        answer = int(int_matches[-1])
+        answer = int( float(int_matches[-1]))
     else:
         # print("Cannot find answer")
         answer = None
@@ -183,6 +184,7 @@ if __name__ == "__main__":
             for i, agent_context in enumerate(agent_contexts):
                 #print(f'agent {i}')
 
+                #print(f'agent_context:{len(agent_context)}')
                 if round != 0:
                     agent_contexts_other = agent_contexts[:i] + agent_contexts[i+1:]
                     messages = construct_message_with_mask(
@@ -200,13 +202,16 @@ if __name__ == "__main__":
                 assistant_message = completion["choices"][0]["message"]["content"]
                 #print(assistant_message)
                 agent_context.append({"role": "assistant", "content": assistant_message})
-                
+                #print(f'agent_context:{len(agent_context)}')
+                agent_contexts[i] = agent_context
+
                 text_answer,text_confidence = parse_answer(assistant_message)
                 #print(f'answer {text_answer}, conf: {text_confidence}')
                 info_of_round["context"].append(assistant_message)
                 info_of_round["text_answer"].append(text_answer)
                 info_of_round["confidence"].append(text_confidence)
-            
+            #for i, agent_context in enumerate(agent_contexts):
+                #print(f'agent_contexts[{i}]:{len(agent_context)}')
             text_answer_last_round = text_answer_this_round
             text_answer_this_round = info_of_round["text_answer"]
             
@@ -225,5 +230,6 @@ if __name__ == "__main__":
             
             
             results[eval_round]['states'].append(info_of_round)
-    #print(results)
+        if eval_round % int(evaluation_round // 10) == 0:
+            pickle.dump(results,open("math_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
     pickle.dump(results,open("math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
