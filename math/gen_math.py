@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
     agents = args.agent
     debate_round = args.debate_rounds
-    np.random.seed(4125)
+    # np.random.seed(4125)
     visibility_ratio=args.ratio
     mask_config = MaskConfig(
             num_agents=agents,
@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
     results = {}
 
-    for eval_round in tqdm(range(evaluation_round)):
+    for eval_round in tqdm(range(evaluation_round), total=evaluation_round, position=0, desc='Eval', leave=False, colour='#82b0d2', unit='traj'):
         a, b, c, d, e, f = np.random.randint(0, args.question_range, size=6)
         answer = a + b * c + d - e * f
         question = '{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f)
@@ -169,7 +169,7 @@ if __name__ == "__main__":
         change_caculated = [0] * agents
         text_answer_this_round = [None] * agents
         text_answer_last_round = [None] * agents
-        for round in range(debate_round):
+        for round in tqdm(range(debate_round), total=debate_round, position=1, desc='Debate', leave=False, colour='#8ecfc9', unit='round'):
             #print(f'debate round{round}')
             info_of_round["round"] = round
 
@@ -229,7 +229,7 @@ if __name__ == "__main__":
                 info_of_round["answer_change"] = change_caculated
             
             
-            results[eval_round]['states'].append(info_of_round)
-        if eval_round % int(evaluation_round // 10) == 0:
-            pickle.dump(results,open("math_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
-    pickle.dump(results,open("math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
+            results[eval_round]['states'].append(copy.deepcopy(info_of_round))
+        if (eval_round+1) % max(1,int(evaluation_round // 10)) == 0:
+            pickle.dump(results,open("progress_data/math_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
+    pickle.dump(results,open("data/math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
