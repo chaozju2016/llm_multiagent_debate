@@ -22,7 +22,7 @@ class LlamaClient(OpenAI):
         data = {
             "messages": messages,
             "n_predict": max_tokens,
-            "repeat_penalty": 1.3,
+            #"repeat_penalty": 1.3,
             "temperature": temperature,
             "stop": stop or ["user:","assistant:","Human:", "Assistant:","  .","\n\n\n"],
         }
