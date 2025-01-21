@@ -316,6 +316,7 @@ if __name__ == "__main__":
             results[eval_round]['states'].append(copy.deepcopy(info_of_round))
         if args.debug:
             print(f'question: {question}, answer: {answer}')
+        # Todo: update name
         if (eval_round+1) % max(1,int(evaluation_round // 10)) == 0:
-            pickle.dump(results,open("progress_data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
-    pickle.dump(results,open("data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
+            pickle.dump(results,open("progress_data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_strategy_{}_lowerboundrange_{}_{}_upperboundrange_{}_{}_range{}_{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.mask_strategy,args.lower_bound_init,args.lower_bound_final,args.upper_bound_init,args.upper_bound_final,args.question_range,eval_round),'wb'))
+    pickle.dump(results,open("data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_strategy_{}_lowerboundrange_{}_{}_upperboundrange_{}_{}_range{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.mask_strategy,args.lower_bound_init,args.lower_bound_final,args.upper_bound_init,args.upper_bound_final,args.question_range),'wb'))
