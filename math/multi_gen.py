@@ -143,8 +143,8 @@ if __name__ == "__main__":
     parser.add_argument('-ld','--log_dir', type=str, default='multi', help='Log directory (default: multi)')
     parser.add_argument('-lbi','--lower_bound_init', type=float, default=0.0, help='lower_bound_init (default: 0.0)')
     parser.add_argument('-lbf','--lower_bound_final', type=float, default=0.5, help='lower_bound_final (default: 0.5)')
-    parser.add_argument('-ubi','--upper_bound_init', type=float, default=0.5, help='lower_bound_init (default: 0.5)')
-    parser.add_argument('-ubf','--upper_bound_final', type=float, default=1.0, help='lower_bound_final (default: 1.0)')
+    parser.add_argument('-ubi','--upper_bound_init', type=float, default=0.5, help='upper_bound_init (default: 0.5)')
+    parser.add_argument('-ubf','--upper_bound_final', type=float, default=1.0, help='upper_bound_final (default: 1.0)')
     args = parser.parse_args()
 
     experiment_name = args.log_dir
