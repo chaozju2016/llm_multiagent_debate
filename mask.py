@@ -4,7 +4,7 @@ Provides different strategies for mask generation with controlled visibility rat
 """
 
 import numpy as np
-from typing import Optional, Literal, Union
+from typing import Optional, Literal, Union, Tuple
 from dataclasses import dataclass
 
 @dataclass
@@ -12,7 +12,9 @@ class MaskConfig:
     """Configuration for mask generation"""
     num_agents: int
     visibility_ratio: float
-    strategy: Literal['fixed_ratio', 'independent', 'symmetric'] = 'fixed_ratio'
+    strategy: Literal['fixed_ratio', 'independent', 'symmetric', 'similarity'] = 'fixed_ratio'
+    similarity_visible_range: Optional[Tuple[float, float]] = None
+    similarity_outlier_threshold: Optional[float] = 0.5
     
     def __post_init__(self):
         if not 0 <= self.visibility_ratio <= 1:
@@ -24,7 +26,7 @@ class MaskGenerator:
     """Generates visibility masks for agent communication"""
     
     @staticmethod
-    def generate(config: MaskConfig) -> np.ndarray:
+    def generate(config: MaskConfig, sim_matrix: np.ndarray =None, range_index: int = None) -> np.ndarray:
         """
         Generate visibility mask based on specified configuration
         
@@ -42,6 +44,8 @@ class MaskGenerator:
             return MaskGenerator._independent_mask(config)
         elif config.strategy == 'symmetric':
             return MaskGenerator._symmetric_mask(config)
+        elif config.strategy == 'similarity' and sim_matrix is not None:
+            return MaskGenerator._similarity_mask(config, sim_matrix, range_index)
         else:
             raise ValueError(f"Unknown strategy: {config.strategy}")
     
@@ -80,6 +84,42 @@ class MaskGenerator:
         
         # Make it symmetric by copying upper triangle to lower triangle
         mask = np.logical_or(upper, upper.T)
+        return mask
+    
+    @staticmethod
+    def _similarity_mask(
+        config: MaskConfig,
+        sim_matrix: np.ndarray, 
+        range_index: int,
+        enable_asymmetric: bool = True
+        ) -> np.ndarray:
+        """
+        根据相似度矩阵生成mask matrix
+        
+        Args:
+            sim_matrix: 相似度矩阵 shape=(num_agents, num_agents)
+            enable_asymmetric: 是否启用非对称mask
+        
+        Returns:
+            mask_matrix: bool矩阵,True表示可见
+        """
+        low, high = config.similarity_visible_range[min(len(config.similarity_visible_range),range_index)]
+        mask = (sim_matrix >= low) & (sim_matrix <= high)
+        
+        if range_index >=2 and enable_asymmetric:
+            # 计算每个agent的平均相似度
+            mean_sims = np.mean(sim_matrix, axis=1)
+            # 找出离群者(平均相似度显著低于整体)
+            outliers = (mean_sims < config.similarity_outlier_threshold) & (mean_sims < np.mean(mean_sims) - np.std(mean_sims))
+            
+            # 让离群者可以看到所有人
+            mask[outliers] = True
+            # 但其他人暂时看不到离群者
+            mask[:, outliers] = False
+        
+        # 确保对角线为True(自己总是可以看到自己)
+        np.fill_diagonal(mask, True)
+        
         return mask
 
 def apply_mask(messages: list, mask: np.ndarray, agent_idx: int) -> list:
