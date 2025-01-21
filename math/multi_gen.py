@@ -136,8 +136,8 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--agent', type=int, default=3, help='Agent number (default: 3)')
     parser.add_argument('-p', '--port', type=int, default=8080, help='Port number (default: 8080)')
     parser.add_argument('-r', '--ratio', type=float, default=1.0, help='Ratio value (default: 1.0)')
-    parser.add_argument('-er', '--eval_rounds', type=int, default=1, help='Evaluation rounds (default: 30)')
-    parser.add_argument('-dr', '--debate_rounds', type=int, default=3, help='Debate rounds (default: 3)')
+    parser.add_argument('-er', '--eval_rounds', type=int, default=100, help='Evaluation rounds (default: 100)')
+    parser.add_argument('-dr', '--debate_rounds', type=int, default=5, help='Debate rounds (default: 5)')
     parser.add_argument('-q', '--question_range', type=int, default=30, help='Question range (default: 30)')
     parser.add_argument('-D','--debug', type=bool, default=False, help='Debug ouput (default: False)')
     parser.add_argument('-ld','--log_dir', type=str, default='multi', help='Log directory (default: multi)')
@@ -316,7 +316,7 @@ if __name__ == "__main__":
             results[eval_round]['states'].append(copy.deepcopy(info_of_round))
         if args.debug:
             print(f'question: {question}, answer: {answer}')
-        # Todo: update name
+        
         if (eval_round+1) % max(1,int(evaluation_round // 10)) == 0:
             pickle.dump(results,open("progress_data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}_strategy_{}_lowerboundrange_{}_{}_upperboundrange_{}_{}_{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range,args.mask_strategy,args.lower_bound_init,args.lower_bound_final,args.upper_bound_init,args.upper_bound_final,eval_round),'wb'))
     pickle.dump(results,open("data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}_strategy_{}_lowerboundrange_{}_{}_upperboundrange_{}_{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range,args.mask_strategy,args.lower_bound_init,args.lower_bound_final,args.upper_bound_init,args.upper_bound_final),'wb'))
