@@ -141,6 +141,10 @@ if __name__ == "__main__":
     parser.add_argument('-q', '--question_range', type=int, default=30, help='Question range (default: 30)')
     parser.add_argument('-D','--debug', type=bool, default=False, help='Debug ouput (default: False)')
     parser.add_argument('-ld','--log_dir', type=str, default='multi', help='Log directory (default: multi)')
+    parser.add_argument('-lbi','--lower_bound_init', type=float, default=0.0, help='lower_bound_init (default: 0.0)')
+    parser.add_argument('-lbf','--lower_bound_final', type=float, default=0.5, help='lower_bound_final (default: 0.5)')
+    parser.add_argument('-ubi','--upper_bound_init', type=float, default=0.5, help='lower_bound_init (default: 0.5)')
+    parser.add_argument('-ubf','--upper_bound_final', type=float, default=1.0, help='lower_bound_final (default: 1.0)')
     args = parser.parse_args()
 
     experiment_name = args.log_dir
@@ -152,14 +156,14 @@ if __name__ == "__main__":
     
     debate_round = args.debate_rounds
     # similarity
-    lower_bound_init = 0.0
-    lower_bound_final = args.ratio
+    lower_bound_init = args.lower_bound_init
+    lower_bound_final = args.lower_bound_final # args.ratio
     lower_bound_step = (lower_bound_final-lower_bound_init)/(debate_round-2)
     lower_bounds = np.append(
         np.arange(lower_bound_init, lower_bound_final, lower_bound_step),
         lower_bound_final) if lower_bound_init != lower_bound_final else np.ones(debate_round)*lower_bound_init
-    upper_bound_init = 1.0
-    upper_bound_final = 1.0
+    upper_bound_init = args.upper_bound_init
+    upper_bound_final = args.upper_bound_final
     upper_bound_step = (upper_bound_final-upper_bound_init)/(debate_round-2)
     upper_bounds = np.append(
         np.arange(upper_bound_init, upper_bound_final, upper_bound_step),
