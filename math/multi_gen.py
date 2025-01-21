@@ -145,6 +145,7 @@ if __name__ == "__main__":
     parser.add_argument('-lbf','--lower_bound_final', type=float, default=0.5, help='lower_bound_final (default: 0.5)')
     parser.add_argument('-ubi','--upper_bound_init', type=float, default=0.5, help='upper_bound_init (default: 0.5)')
     parser.add_argument('-ubf','--upper_bound_final', type=float, default=1.0, help='upper_bound_final (default: 1.0)')
+    parser.add_argument('-ms','--mask_strategy',type=str, default='similarity',help='mask_strategy(default:similarity)')
     args = parser.parse_args()
 
     experiment_name = args.log_dir
@@ -178,7 +179,7 @@ if __name__ == "__main__":
     mask_config = MaskConfig(
             num_agents=agents,
             visibility_ratio=visibility_ratio,  # 可以根据需要调整
-            strategy='similarity',
+            strategy=args.mask_strategy,
             similarity_visible_range=similarity_visible_range
             )
     #llama_client = LlamaClient(base_url='http://127.0.0.1:{}'.format(args.port))
