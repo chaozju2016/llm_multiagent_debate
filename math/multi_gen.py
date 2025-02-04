@@ -7,10 +7,13 @@ from tqdm import tqdm
 import re
 import argparse
 import sys
+import os
 
 sys.path.append("..")
+from sentence_transformers import SentenceTransformer
 from client import LlamaClient
 from mask import MaskConfig, MaskGenerator
+from similarity import compute_similarities
 
 SYSTEM_MESSAGE = (
         "Make sure to state your answer and your confidence at the end of the response following format strictly."
@@ -28,7 +31,7 @@ def generate_answer(answer_context, client):
     try:
         completion = client.create_chat_completion(
                 messages=answer_context,
-                max_tokens=1024,
+                max_tokens=200,
                 temperature=0,
                 )
     except Exception as e:
@@ -82,18 +85,18 @@ def construct_message_with_mask(agent_contexts_other, idx, agent_mask, agent_ind
 
 def parse_answer(sentence):
     #print(f'parsing\n{sentence}')
-    int_matches_formatted = re.findall(r"My answer is (-?\d+(?:\.\d+)?)", sentence)
-    float_matches_formatted = re.findall(r"My confidence is (-?\d+\.\d+)", sentence)
+    int_matches_formatted = re.findall(r"My answer is \**\s*(-?\d+(?:\.\d+)?)\s*\**", sentence)
+    float_matches_formatted = re.findall(r"My confidence is \**\s*(-?\d+\.\d+)\s*\**", sentence)
     
     int_matches = re.findall(r'(?<![\d.])-?\b\d+\b(?!\.\d|%)', sentence)
     float_matches = re.findall(r'-?\d+\.\d+', sentence)
     
     if int_matches_formatted:
         # print("answer-textformat-get!")
-        answer = int( float(int_matches_formatted[-1]))
+        answer = int( eval(int_matches_formatted[-1]))
     elif int_matches:
         # print("answer-integer-get!")
-        answer = int( float(int_matches[-1]))
+        answer = int( eval(int_matches[-1]))
     else:
         # print("Cannot find answer")
         answer = None
@@ -101,7 +104,7 @@ def parse_answer(sentence):
     if float_matches_formatted:
         # print("confidence-textformat-get!")
         # print()
-        confidence = float(float_matches_formatted[-1])
+        confidence = float(eval(float_matches_formatted[-1]))
     elif float_matches:
         # print("confidence-float-get!")
         confidence = float(float_matches[-1])
@@ -112,18 +115,20 @@ def parse_answer(sentence):
     
     return answer,confidence
 
-def find_longest_trailing_repeat(text):
+def clean_repeat_suffix(text):
     n = len(text)
     # 从最长可能的重复长度开始尝试
-    for length in range(n // 2, 2, -1):
+    for length in range(n//2, 10, -1):
         # 获取末尾的子串
         suffix = text[-length:]
-        # 检查它前面是否也存在这个子串
-        if text[:-length].endswith(suffix):
-            # 找到重复，返回重复开始前的文本
-            return text[:-length]
+        # 在去掉末尾这段后的文本中查找这个子串
+        pos = text.find(suffix)
+        
+        # 如果找到了，并且正好是末尾（pos + length == len(remaining)）
+        if pos != -1 and pos + length != n:
+            # 找到了重复，返回重复之前的部分
+            return text[:pos + length]
     return text
-
 
 if __name__ == "__main__":
 
@@ -134,21 +139,51 @@ if __name__ == "__main__":
     parser.add_argument('-er', '--eval_rounds', type=int, default=1, help='Evaluation rounds (default: 30)')
     parser.add_argument('-dr', '--debate_rounds', type=int, default=3, help='Debate rounds (default: 3)')
     parser.add_argument('-q', '--question_range', type=int, default=30, help='Question range (default: 30)')
+    parser.add_argument('-D','--debug', type=bool, default=False, help='Debug ouput (default: False)')
+    parser.add_argument('-ld','--log_dir', type=str, default='multi', help='Log directory (default: multi)')
     args = parser.parse_args()
 
+    experiment_name = args.log_dir
+    os.makedirs(f'progress_data/{experiment_name}',exist_ok=True)
+    os.makedirs(f'data/{experiment_name}',exist_ok=True)
     agents = args.agent
     ports = [args.port+i for i in range(1,1+agents)]
     print(ports)
+    
     debate_round = args.debate_rounds
-    np.random.seed(4125)
+    # similarity
+    lower_bound_init = 0.0
+    lower_bound_final = args.ratio
+    lower_bound_step = (lower_bound_final-lower_bound_init)/(debate_round-2)
+    lower_bounds = np.append(
+        np.arange(lower_bound_init, lower_bound_final, lower_bound_step),
+        lower_bound_final) if lower_bound_init != lower_bound_final else np.ones(debate_round)*lower_bound_init
+    upper_bound_init = 1.0
+    upper_bound_final = 1.0
+    upper_bound_step = (upper_bound_final-upper_bound_init)/(debate_round-2)
+    upper_bounds = np.append(
+        np.arange(upper_bound_init, upper_bound_final, upper_bound_step),
+        upper_bound_final) if upper_bound_init != upper_bound_final else np.ones(debate_round)*upper_bound_init
+    
+    similarity_visible_range = list(zip(lower_bounds, upper_bounds))
+    
+    if args.debug:
+        print(f'similarity_visible_range:{similarity_visible_range}')
+    # np.random.seed(4125)
     visibility_ratio=args.ratio
     mask_config = MaskConfig(
             num_agents=agents,
             visibility_ratio=visibility_ratio,  # 可以根据需要调整
-            strategy='fixed_ratio'
+            strategy='similarity',
+            similarity_visible_range=similarity_visible_range
             )
     #llama_client = LlamaClient(base_url='http://127.0.0.1:{}'.format(args.port))
     llama_client = [LlamaClient(base_url=f'http://127.0.0.1:{port}') for port in ports]
+    
+    embedding_model = SentenceTransformer(
+        model_name_or_path = "../nomic-ai/nomic-embed-text-v1", trust_remote_code=True,
+        device = 'cuda'
+        )
 
     evaluation_round = args.eval_rounds
 
@@ -158,7 +193,9 @@ if __name__ == "__main__":
         a, b, c, d, e, f = np.random.randint(0, args.question_range, size=6)
         answer = a + b * c + d - e * f
         question = '{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f)
-        #print(f'question: {question}, answer: {answer}')
+        
+        if args.debug:
+            print(f'question: {question}, answer: {answer}')
         
         agent_contexts = [
                 [
@@ -185,19 +222,35 @@ if __name__ == "__main__":
         text_answer_this_round = [None] * agents
         text_answer_last_round = [None] * agents
         for round in tqdm(range(debate_round), total=debate_round, position=1, desc='Debate', leave=False, colour='#8ecfc9', unit='round'):
-            #print(f'debate round{round}')
+            if args.debug:
+                print(f'debate round{round}')
+                
             info_of_round["round"] = round
-
-            mask_matrix = MaskGenerator.generate(mask_config)
-            #print(f'mask:{mask_matrix}')
             info_of_round["text_answer"] = []
             info_of_round["confidence"] = []
             info_of_round["answer_change"] = []
             info_of_round["context"] = []
-            info_of_round["mask_matrix"] = mask_matrix
+            info_of_round['usage'] = []
 
+            if round != 0:
+                # @todo: fix this
+                sim_matrix= results[eval_round]['states'][-1]['sim_matrix']
+                if args.debug:
+                    print(f'sim_matrix:\n{sim_matrix}')
+                mask_matrix = MaskGenerator.generate(
+                    config=mask_config, 
+                    sim_matrix=sim_matrix,
+                    range_index=round-1)
+                if args.debug:
+                    print(f'mask_matrix:\n{mask_matrix}')
+            else:
+                mask_matrix = np.eye(agents, dtype=bool)
+            info_of_round["mask_matrix"] = mask_matrix
+                
+                
             for i, agent_context in enumerate(agent_contexts):
-                #print(f'agent {i}')
+                if args.debug:
+                    print(f'agent {i}')
 
                 #print(f'agent_context:{len(agent_context)}')
                 if round != 0:
@@ -216,21 +269,31 @@ if __name__ == "__main__":
                 #[-2:] stands for latest [sys, user]
                 completion = generate_answer(agent_context[-3:], llama_client[i])
                 assistant_message = completion["choices"][0]["message"]["content"]
-                #assistant_message=find_longest_trailing_repeat(assistant_message)
-                #print(assistant_message)
+                assistant_message=clean_repeat_suffix(assistant_message)
+                if args.debug:
+                    print(assistant_message)
                 agent_context.append({"role": "assistant", "content": assistant_message})
                 agent_contexts[i] = agent_context
 
                 text_answer,text_confidence = parse_answer(assistant_message)
-                #print(f'answer {text_answer}, conf: {text_confidence}')
+                if args.debug:
+                    print(f'answer {text_answer}, conf: {text_confidence}')
                 info_of_round["context"].append(assistant_message)
                 info_of_round["text_answer"].append(text_answer)
                 info_of_round["confidence"].append(text_confidence)
+                
+                info_of_round['usage'].append(completion['usage'])
             
             text_answer_last_round = text_answer_this_round
             text_answer_this_round = info_of_round["text_answer"]
             
-            #print(f'answer {text_answer_this_round}, conf: {info_of_round["confidence"]}')
+            context = ['search_document: ' + s for s in info_of_round['context']]
+            embeddings = embedding_model.encode(context, normalize_embeddings=True)
+            sim_matrix = compute_similarities(embeddings=embeddings, return_format='matrix')
+            info_of_round["sim_matrix"] = sim_matrix
+            
+            if args.debug:
+                print(f'answer {text_answer_this_round}, conf: {info_of_round["confidence"]}')
             
             if round == 0:
                 info_of_round["answer_change"] = [0] * agents
@@ -246,7 +309,8 @@ if __name__ == "__main__":
             
             
             results[eval_round]['states'].append(copy.deepcopy(info_of_round))
-        #print(f'question: {question}, answer: {answer}')
+        if args.debug:
+            print(f'question: {question}, answer: {answer}')
         if (eval_round+1) % max(1,int(evaluation_round // 10)) == 0:
-            pickle.dump(results,open("progress_data/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
-    pickle.dump(results,open("data/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
+            pickle.dump(results,open("progress_data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
+    pickle.dump(results,open("data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
