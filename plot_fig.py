@@ -75,9 +75,6 @@ def process_file(file_name: str):
     return data_df
 
 
-import seaborn as sns
-import matplotlib.pyplot as plt
-
 def plot_swarm_figure(data_df: pd.DataFrame, save_path: str = None):
     """
     Plots a swarm plot of similarity scores across rounds, with points colored by problem index.
