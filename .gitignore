@@ -8,3 +8,4 @@ range*/
 *.swo
 *.sh
 .DS_store
+*.ipynb
