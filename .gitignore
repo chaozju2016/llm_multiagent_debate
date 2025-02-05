@@ -7,4 +7,5 @@ __pycache__/
 range*/
 *.swo
 *.sh
-nomic_ai/
+.DS_store
+*.ipynb
