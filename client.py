@@ -15,17 +15,17 @@ class LlamaClient(OpenAI):
     def create_chat_completion(
         self,
         messages: List[Dict[str, str]],
-        max_tokens: int = 128,
+        max_tokens: int = None,
         temperature: float = 0.8,
         stop: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         data = {
             "messages": messages,
-            "n_predict": max_tokens,
-            #"repeat_penalty": 1.3,
             "temperature": temperature,
             "stop": stop or ["user:","assistant:","Human:", "Assistant:","  .","\n\n\n"],
         }
+        if max_tokens:
+            data['max_tokens']=max_tokens
         response = requests.post(f"{self.base_url}/chat/completions", json=data)
         response.raise_for_status()
         completion = response.json()

@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import re
 from collections import Counter
+from copy import deepcopy
 
 def extract_parameters(filename):
         # 定义正则表达式模式
@@ -23,14 +24,32 @@ def extract_parameters(filename):
             return params
         return None
 
-def find_most_frequent(arr):
-    flat_arr = arr.flatten()
-    valid_values = [x for x in flat_arr if x is not None and not np.isnan(x)]
-    if not valid_values:
-        return None
-    counter = Counter(valid_values)
-    most_frequent_value, _count = counter.most_common(1)[0]
-    return most_frequent_value
+def last_boxed_only_string(solution: str) -> str:
+    """
+    Extract the last \boxed{...} content from a solution string.
+    
+    Args:
+        solution: LaTeX formatted solution string
+        
+    Returns:
+        Content of the last \boxed{...} expression, or empty string if none found
+    """
+    # Handle nested braces using regex with balanced group matching
+    pattern = r'\\boxed\{([^{}]*(?:\{[^{}]*\})*[^{}]*)\}'
+    matches = list(re.finditer(pattern, solution))
+    
+    if not matches:
+        return ""
+    
+    # Return the content of the last boxed expression
+    return matches[-1].group(1).strip()
+
+def find_majority(nums):
+    counts = {}
+    for num in nums:
+        counts[num] = counts.get(num, 0) + 1
+    return max(counts, key=counts.get)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='math')
@@ -41,7 +60,8 @@ if __name__ == "__main__":
     data_dir = args.data_dir
 
     data_files = os.listdir(data_dir)
-    data_files = [data_file for data_file in data_files if '.p' in data_file]
+    # only keep pickle files
+    data_files = [data_file for data_file in data_files if data_file.endswith('.p')]
     print(f'find {len(data_files)} file(s)')
 
     accuracy = {}
@@ -54,15 +74,20 @@ if __name__ == "__main__":
 
         data = pickle.load(open(os.path.join(data_dir,data_file),'rb'))
         
-        gt_answer = np.zeros(er, dtype=float)
-        agent_answer = np.zeros((er, dr, agents), dtype=float)
+        gt_answer = []
+        # agent_answer = np.zeros((er, dr, agents), dtype=str)
+        agent_answer = []
 
         for traj_id, traj in data.items():
-            gt_answer[traj_id] = float(traj['answer'])
+            gt_answer.append(last_boxed_only_string(traj['answer']))
+            agent_answer_traj = []
             for debate_context in traj['states']:
-                agent_answer[traj_id][debate_context['round']] = debate_context['text_answer'] or np.nan
-
-        accuracy[data_file] = np.asarray(np.equal(gt_answer[:,None,None], agent_answer).mean(axis=-1)).mean(axis=0)
+                agent_answer_traj.append(find_majority(debate_context['text_answer']))
+            agent_answer.append(deepcopy(agent_answer_traj))
+            # print(gt_answer[traj_id])
+            # print(agent_answer[traj_id])
+            
+        accuracy[data_file] = np.asarray(np.equal(np.asarray(gt_answer)[:,None], np.asarray(agent_answer))).mean(axis=0)
         
     
     for k in sorted(accuracy.keys()):

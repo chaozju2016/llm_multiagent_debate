@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import argparse
 
 def extract_upper_triangle(matrix):
     """
@@ -83,9 +84,24 @@ def plot_swarm_figure(data_df: pd.DataFrame, save_path: str = None):
         data_df (pd.DataFrame): A DataFrame containing the columns 'round', 'simularity', and 'problem'.
         save_path (str, optional): The file path to save the plot. If None, the plot is not saved.
     """
+    plt.clf()
     # Create a swarm plot with 'round' on the x-axis, 'simularity' on the y-axis, and colored by 'problem'
-    sns.swarmplot(x="round", y="simularity", hue="problem", data=data_df, palette="viridis")
-    
+    # sns.swarmplot(x="round", y="simularity", hue="problem", data=data_df, palette="viridis",
+    #     size=3,  # 减小点的大小
+    #     alpha=0.6,  # 添加透明度
+    #     )
+    sns.stripplot(
+        x="round", 
+        y="simularity", 
+        hue="problem", 
+        data=data_df, 
+        palette="viridis",
+        size=3,
+        alpha=0.6,
+        jitter=True,  # 添加随机抖动
+        dodge=True,    # 按 problem 分组错开显示
+    )
+
     plt.title("Swarm Plot of Similarity Scores by Problem Index")
     plt.xlabel("Round")
     plt.ylabel("Similarity Score")
@@ -101,8 +117,31 @@ def plot_swarm_figure(data_df: pd.DataFrame, save_path: str = None):
 
 
 if __name__ == "__main__":
-    data_file_name = "data/glm_glm_llama_dynamic_mask_o2/multi_math_results_er100_agents3_dr5_ratio0.6_range30.p"
-    data_df = process_file(file_name=data_file_name)
-    plot_swarm_figure(data_df=data_df, save_path="./data/glm_glm_llama_dynamic_mask_o2/multi_math_results_er100_agents3_dr5_ratio0.6_range30.png")
-
-
+    parser = argparse.ArgumentParser(description='math')
+    parser.add_argument('-d', '--data_dir', type=str, default=None, help='data dir')
+    parser.add_argument('-f', '--file_name', type=str, default=None, help='file name')
+    args = parser.parse_args()
+    
+    data_file_list = []
+    
+    if args.file_name is None:
+        if args.data_dir is None:
+            raise ValueError('Please provide a file name')
+        else:
+            data_file_list = os.listdir(args.data_dir)
+            # leave only pickle files
+            data_file_list = [os.path.join(args.data_dir, file) for file in data_file_list if file.endswith('.p')]
+            
+    if args.data_dir is None:
+        if args.file_name is None:
+            raise ValueError('Please provide a data dir')
+        else:
+            data_file_list = [args.file_name]
+    
+    for data_file_name in data_file_list:
+        data_df = process_file(file_name=data_file_name)
+        plot_swarm_figure(data_df=data_df, save_path=data_file_name.replace('.p', '.png'))
+        # reset sns
+        sns.reset_orig()
+        # reset plt
+        plt.clf()
