@@ -41,10 +41,12 @@ class MetricCalculator:
 if __name__ == "__main__":
     # run in parent folder of metrics with command "python3 -m metrics.calculate_metrics"
     from .semantic_convergence import calculate_semantic_convergence
+    from .influence_score import calculate_influence_score
     from .organize_data import process_file
 
     metrics = {
-        "semantic_similarity": calculate_semantic_convergence
+        "semantic_similarity": calculate_semantic_convergence,
+        "influence_matrix": calculate_influence_score,
     }
 
     metric_calcultor = MetricCalculator()
@@ -62,4 +64,4 @@ if __name__ == "__main__":
 
     print(f"metric_dict ({type(metric_dict)}):")
     for key, metric in metric_dict.items():
-        print(f"{key}: {type(metric)}")
+        print(f"{key}: {type(metric)}, \n{metric}")

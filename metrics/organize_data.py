@@ -9,6 +9,7 @@ STATES_KEY = 'states'
 ROUND_KEY = 'round'
 TEXT_ANSWER_KEY = 'text_answer'
 CONFIDENCE_KEY = 'confidence'
+CONTEXT_KEY = 'context'
 USAGE_KEY = 'usage'
 MASK_MATRIX_KEY = 'mask_matrix'
 SIM_MATRIX_KEY = 'sim_matrix'
@@ -66,6 +67,7 @@ def process_file(file_name: str) -> pd.DataFrame:
                 ROUND_KEY: state.get(ROUND_KEY, ''),
                 TEXT_ANSWER_KEY: state.get(TEXT_ANSWER_KEY, ''),
                 CONFIDENCE_KEY: state.get(CONFIDENCE_KEY, ''),
+                CONTEXT_KEY: state.get(CONTEXT_KEY, ''),
                 USAGE_KEY: state.get(USAGE_KEY, ''),
                 MASK_MATRIX_KEY: state.get(MASK_MATRIX_KEY, ''),
                 SIM_MATRIX_KEY: state.get(SIM_MATRIX_KEY, ''),
