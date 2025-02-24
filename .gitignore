@@ -9,3 +9,5 @@ range*/
 *.sh
 .DS_store
 *.ipynb
+paper_files/
+*.png

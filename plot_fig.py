@@ -74,6 +74,29 @@ def process_file(file_name: str):
 
     return data_df
 
+def calculate_simi_mean_std(df):
+    # group by round and calculate mean and std of simularity
+    grouped = df.groupby('round')['simularity'].agg(['mean', 'std'])
+    
+    # get the max round
+    max_round = grouped.index.max()
+    
+    # initialize the result list
+    result = []
+    
+    # iter from 0 to max round
+    for round_num in range(max_round + 1):
+        if round_num in grouped.index:
+            mean = grouped.loc[round_num, 'mean']
+            std = grouped.loc[round_num, 'std']
+        else:
+            # if the round not exist, then mean and std is NaN
+            mean, std = np.nan, np.nan
+        
+        # add the result to the list
+        result.append({'round': round_num, 'mean': mean, 'std': std})
+    
+    return result
 
 def plot_swarm_figure(data_df: pd.DataFrame, save_path: str = None):
     """
@@ -104,5 +127,6 @@ if __name__ == "__main__":
     data_file_name = "data/glm_glm_llama_dynamic_mask_o2/multi_math_results_er100_agents3_dr5_ratio0.6_range30.p"
     data_df = process_file(file_name=data_file_name)
     plot_swarm_figure(data_df=data_df, save_path="./data/glm_glm_llama_dynamic_mask_o2/multi_math_results_er100_agents3_dr5_ratio0.6_range30.png")
+    print(calculate_simi_mean_std(data_df))
 
 
