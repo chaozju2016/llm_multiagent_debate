@@ -11,3 +11,11 @@ range*/
 *.ipynb
 paper_files/
 *.png
+*.ipynb_checkpoints/
+*.ttf
+*data/
+*.png
+mmlu/cais/
+nomic-ai/
+hendryck/hendrycks_math/
+hendryck/math/

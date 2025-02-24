@@ -8,23 +8,16 @@ import re
 import argparse
 import sys
 import os
-
+from glob import glob
+import pandas as pd
+import random
 sys.path.append("..")
 from sentence_transformers import SentenceTransformer
 from client import LlamaClient
 from mask import MaskConfig, MaskGenerator
 from similarity import compute_similarities
 
-SYSTEM_MESSAGE = (
-        "Make sure to state your answer and your confidence at the end of the response following format strictly."
-        "You should state your answer following this format:\n"
-        "My answer is *your answer*\n"
-        "For example, you must say in this format:My answer is 100.\n"
-        "You must follow this format to state your confidence is a float in [0,1] with at most two digits:\n"
-        "My confidence is *your confidence*\n"
-        "For example, you can say, my confidence is 0.85.\n"
-        )
-
+SYSTEM_MESSAGE = "Explain your answer, putting the answer in the form (X) at the end of your response"
 
 
 def generate_answer(answer_context, client):
@@ -32,7 +25,7 @@ def generate_answer(answer_context, client):
         completion = client.create_chat_completion(
                 messages=answer_context,
                 max_tokens=1024,
-                temperature=0,
+                temperature=0.0,
                 )
     except Exception as e:
         print("retrying due to an error:",e)
@@ -54,11 +47,11 @@ def construct_message_with_mask(agent_contexts_other, idx, agent_mask, agent_ind
                 },
                 {
                     "role": "user", 
-                    "content": "Can you verify that your answer is correct? Please reiterate your answer."
+                    "content": "Can you double check that your answer is correct."
                 },
             ]
     else:
-        prefix_string = "These are the recent/updated opinions from other agents: "
+        prefix_string = "These are the solutions to the problem from other agents: "
         for agent_idx, agent in enumerate(agent_contexts_other):
             if agent_mask[agent_idx]:  # 如果当前agent可见
                 agent_response = agent[idx]["content"]
@@ -74,46 +67,20 @@ def construct_message_with_mask(agent_contexts_other, idx, agent_mask, agent_ind
                 },
                 {
                     "role": "user",
-                    "content": prefix_string + "\n\n Use these opinions carefully as additional advice, can you provide an updated answer?"
+                    "content": prefix_string + "\n\n Using the reasoning from other agents as additional advice, can you provide an updated answer? Eaxming your solution and that of other agents step by step. "
                 },
             ]
 
     return messages 
 
-
-
-
-def parse_answer(sentence):
-    #print(f'parsing\n{sentence}')
-    int_matches_formatted = re.findall(r"My answer is \**\s*(-?\d+(?:\.\d+)?)\s*\**", sentence)
-    float_matches_formatted = re.findall(r"My confidence is \**\s*(-?\d+\.\d+)\s*\**", sentence)
-    
-    int_matches = re.findall(r'(?<![\d.])-?\b\d+\b(?!\.\d|%)', sentence)
-    float_matches = re.findall(r'-?\d+\.\d+', sentence)
-    
-    if int_matches_formatted:
-        # print("answer-textformat-get!")
-        answer = int( eval(int_matches_formatted[-1]))
-    elif int_matches:
-        # print("answer-integer-get!")
-        answer = int( eval(int_matches[-1]))
-    else:
-        # print("Cannot find answer")
-        answer = None
-    
-    if float_matches_formatted:
-        # print("confidence-textformat-get!")
-        # print()
-        confidence = float(eval(float_matches_formatted[-1]))
-    elif float_matches:
-        # print("confidence-float-get!")
-        confidence = float(float_matches[-1])
-    else:
-        # print("Cannot find confidence")
-        confidence = None
-
-    
-    return answer,confidence
+def parse_answer(input_str):
+    matches = re.findall(r'[\(\s]+([A-D])[\)\s]+',input_str)
+    solution=None
+    for match_str in matches[::-1]:
+        solution = match_str.upper()
+        if solution:
+            break
+    return solution
 
 def clean_repeat_suffix(text):
     n = len(text)
@@ -136,7 +103,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--agent', type=int, default=3, help='Agent number (default: 3)')
     parser.add_argument('-p', '--port', type=int, default=8080, help='Port number (default: 8080)')
     parser.add_argument('-r', '--ratio', type=float, default=1.0, help='Ratio value (default: 1.0)')
-    parser.add_argument('-er', '--eval_rounds', type=int, default=1, help='Evaluation rounds (default: 30)')
+    parser.add_argument('-er', '--eval_rounds', type=int, default=30, help='Evaluation rounds (default: 30)')
     parser.add_argument('-dr', '--debate_rounds', type=int, default=3, help='Debate rounds (default: 3)')
     parser.add_argument('-q', '--question_range', type=int, default=30, help='Question range (default: 30)')
     parser.add_argument('-D','--debug', type=bool, default=False, help='Debug ouput (default: False)')
@@ -147,8 +114,8 @@ if __name__ == "__main__":
     os.makedirs(f'progress_data/{experiment_name}',exist_ok=True)
     os.makedirs(f'data/{experiment_name}',exist_ok=True)
     agents = args.agent
-    port_overleaf = 0
-    ports = [args.port+1,args.port+2+port_overleaf,args.port+3,args.port+1+port_overleaf,args.port+2,args.port+3+port_overleaf]
+    #ports = [args.port+i for i in range(1,1+agents)]
+    ports = [args.port+1, args.port+2,args.port+3,args.port+1, args.port+2,args.port+3]
     print(ports)
     
     debate_round = args.debate_rounds
@@ -170,12 +137,13 @@ if __name__ == "__main__":
     
     if args.debug:
         print(f'similarity_visible_range:{similarity_visible_range}')
-    # np.random.seed(4125)
+    np.random.seed(4125)
+    random.seed(3154)
     visibility_ratio=args.ratio
     mask_config = MaskConfig(
             num_agents=agents,
             visibility_ratio=visibility_ratio,  # 可以根据需要调整
-            strategy='fixed_ratio',
+            strategy='similarity',
             similarity_visible_range=similarity_visible_range
             )
     #llama_client = LlamaClient(base_url='http://127.0.0.1:{}'.format(args.port))
@@ -188,13 +156,20 @@ if __name__ == "__main__":
 
     evaluation_round = args.eval_rounds
 
+    tasks = glob("cais/data/test/*.csv")
+    dfs = [pd.read_csv(task) for task in tasks]
     results = {}
 
     for eval_round in tqdm(range(evaluation_round), total=evaluation_round, position=0, desc='Eval', leave=False, colour='#82b0d2', unit='traj'):
-        a, b, c, d, e, f = np.random.randint(0, args.question_range, size=6)
-        answer = a + b * c + d - e * f
-        question = '{}+{}*{}+{}-{}*{}'.format(a, b, c, d, e, f)
-        
+        df = random.choice(dfs)
+        ix = random.randint(0,len(df)-1)
+        question = df.iloc[ix, 0]
+        a = df.iloc[ix, 1]
+        b = df.iloc[ix, 2]
+        c = df.iloc[ix, 3]
+        d = df.iloc[ix, 4]
+        answer = df.iloc[ix, 5]
+        question = "{}:A) {}, B) {}, C) {}, D) {}.".format(question, a, b, c, d)
         if args.debug:
             print(f'question: {question}, answer: {answer}')
         
@@ -206,7 +181,7 @@ if __name__ == "__main__":
                     },
                     {
                         "role": "user", 
-                        "content": f"What is the result of {question}?"
+                        "content": f"Can you answer the following question as accurately as possible? {question}?"
                     }
                 ] for agent in range(agents)]
 
@@ -228,7 +203,7 @@ if __name__ == "__main__":
                 
             info_of_round["round"] = round
             info_of_round["text_answer"] = []
-            info_of_round["confidence"] = []
+            #info_of_round["confidence"] = []
             info_of_round["answer_change"] = []
             info_of_round["context"] = []
             info_of_round['usage'] = []
@@ -276,12 +251,12 @@ if __name__ == "__main__":
                 agent_context.append({"role": "assistant", "content": assistant_message})
                 agent_contexts[i] = agent_context
 
-                text_answer,text_confidence = parse_answer(assistant_message)
+                text_answer = parse_answer(assistant_message)
                 if args.debug:
                     print(f'answer {text_answer}, conf: {text_confidence}')
                 info_of_round["context"].append(assistant_message)
                 info_of_round["text_answer"].append(text_answer)
-                info_of_round["confidence"].append(text_confidence)
+                #info_of_round["confidence"].append(text_confidence)
                 
                 info_of_round['usage'].append(completion['usage'])
             
@@ -313,5 +288,5 @@ if __name__ == "__main__":
         if args.debug:
             print(f'question: {question}, answer: {answer}')
         if (eval_round+1) % max(1,int(evaluation_round // 10)) == 0:
-            pickle.dump(results,open("progress_data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
-    pickle.dump(results,open("data/{}/multi_math_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))
+            pickle.dump(results,open("progress_data/{}/multi_mmlu_results_er{}_agents{}_dr{}_ratio{}_range{}_{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range,eval_round),'wb'))
+    pickle.dump(results,open("data/{}/multi_mmlu_results_er{}_agents{}_dr{}_ratio{}_range{}.p".format(experiment_name, evaluation_round, agents, debate_round,visibility_ratio,args.question_range),'wb'))

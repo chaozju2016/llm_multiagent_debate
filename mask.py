@@ -106,7 +106,7 @@ class MaskGenerator:
         low, high = config.similarity_visible_range[min(len(config.similarity_visible_range),range_index)]
         mask = (sim_matrix >= low) & (sim_matrix <= high)
         
-        if range_index >=2 and enable_asymmetric:
+        if enable_asymmetric:
             # 计算每个agent的平均相似度
             mean_sims = np.mean(sim_matrix, axis=1)
             # 找出离群者(平均相似度显著低于整体)

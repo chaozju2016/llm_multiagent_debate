@@ -4,6 +4,10 @@ import json
 import time
 import random
 import openai
+import sys
+sys.path.append("..")
+from client import LlamaClient
+from tqdm import tqdm
 
 def construct_message(agents, question, idx):
     if len(agents) == 0:
@@ -26,16 +30,17 @@ def construct_assistant_message(completion):
     return {"role": "assistant", "content": content}
 
 
-def generate_answer(answer_context):
+def generate_answer(answer_context, client):
     try:
-        completion = openai.ChatCompletion.create(
-                  model="gpt-3.5-turbo-0301",
+        completion = client.create_chat_completion(
                   messages=answer_context,
-                  n=1)
-    except:
-        print("retrying due to an error......")
+                  max_tokens=1024,
+                  temperature=0,
+                  )
+    except Exception as e:
+        print("retrying due to an error......", e)
         time.sleep(20)
-        return generate_answer(answer_context)
+        return generate_answer(answer_context, client)
 
     return completion
 
@@ -55,16 +60,21 @@ def parse_question_answer(df, ix):
 
 if __name__ == "__main__":
     agents = 3
-    rounds = 2
+    port = 8080
+    ports = [port + i +1 for i in range(agents)]
+    debate_round = 4
+    llama_client = [LlamaClient(base_url=f'http://127.0.0.1:{port}') for port in ports]
 
-    tasks = glob("/data/vision/billf/scratch/yilundu/llm_iterative_debate/mmlu/data/test/*.csv")
+    tasks = glob("cais/data/test/*.csv")
 
     dfs = [pd.read_csv(task) for task in tasks]
 
     random.seed(0)
     response_dict = {}
 
-    for i in range(100):
+    evaluation_round=30
+
+    for i in tqdm(range(evaluation_round), total=evaluation_round, position=0, desc='Eval', leave=False, colour='#82b0d2', unit='traj'):
         df = random.choice(dfs)
         ix = len(df)
         idx = random.randint(0, ix-1)
@@ -73,7 +83,7 @@ if __name__ == "__main__":
 
         agent_contexts = [[{"role": "user", "content": question}] for agent in range(agents)]
 
-        for round in range(rounds):
+        for round in tqdm(range(debate_round), total=debate_round, position=1, desc='Debate', leave=False, colour='#8ecfc9', unit='round'):
             for i, agent_context in enumerate(agent_contexts):
 
                 if round != 0:
@@ -81,12 +91,12 @@ if __name__ == "__main__":
                     message = construct_message(agent_contexts_other, question, 2 * round - 1)
                     agent_context.append(message)
 
-                completion = generate_answer(agent_context)
+                completion = generate_answer(agent_context, llama_client[i])
 
                 assistant_message = construct_assistant_message(completion)
                 agent_context.append(assistant_message)
-                print(completion)
+                # print(completion)
 
         response_dict[question] = (agent_contexts, answer)
 
-    json.dump(response_dict, open("mmlu_{}_{}.json".format(agents, rounds), "w"))
+    json.dump(response_dict, open("mmlu_{}_{}.json".format(agents, debate_round), "w"))

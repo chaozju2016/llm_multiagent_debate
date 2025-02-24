@@ -41,7 +41,8 @@ if __name__ == "__main__":
     data_dir = args.data_dir
 
     data_files = os.listdir(data_dir)
-    data_files = [data_file for data_file in data_files if '.p' in data_file]
+    # only keep pickle files
+    data_files = [data_file for data_file in data_files if data_file.endswith('.p')]
     print(f'find {len(data_files)} file(s)')
 
     accuracy = {}
@@ -54,14 +55,16 @@ if __name__ == "__main__":
 
         data = pickle.load(open(os.path.join(data_dir,data_file),'rb'))
         
-        gt_answer = np.zeros(er, dtype=float)
-        agent_answer = np.zeros((er, dr, agents), dtype=float)
+        gt_answer = np.zeros(er, dtype=str)
+        agent_answer = np.zeros((er, dr, agents), dtype=str)
 
         for traj_id, traj in data.items():
-            gt_answer[traj_id] = float(traj['answer'])
+            gt_answer[traj_id] = traj['answer']
             for debate_context in traj['states']:
-                agent_answer[traj_id][debate_context['round']] = debate_context['text_answer'] or np.nan
+                agent_answer[traj_id][debate_context['round']] = debate_context['text_answer']
+                # agent_answer[traj_id][debate_context['round']] = debate_context['majority_answer']
 
+        #accuracy[data_file] = np.asarray(np.equal(gt_answer[:,None,None], agent_answer).mean(axis=-1) >=0.5).mean(axis=0)
         accuracy[data_file] = np.asarray(np.equal(gt_answer[:,None,None], agent_answer).mean(axis=-1)).mean(axis=0)
         
     
