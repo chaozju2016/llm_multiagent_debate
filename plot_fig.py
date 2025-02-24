@@ -41,7 +41,7 @@ def process_file(file_name: str):
         data = pickle.load(f) # Load the serialized data from the file
     
     round_idx = []  # List to store round indices
-    simularity_score = []  # List to store similarity scores
+    similarity_score = []  # List to store similarity scores
     problem_idx = []  # List to store problem indices
 
     problem_num = len(data)  # Total number of problems in the data
@@ -55,18 +55,18 @@ def process_file(file_name: str):
 
             # Extract the upper triangle of the similarity matrix for the current round
             assert 'sim_matrix' in problem_data[i].keys(), "Keyword sim_matrix not found"
-            tmp_simularity_score = extract_upper_triangle(problem_data[i]['sim_matrix'])
+            tmp_similarity_score = extract_upper_triangle(problem_data[i]['sim_matrix'])
 
             # Append the extracted similarity scores, round index, and problem index to their respective lists
-            for score in tmp_simularity_score:
-                simularity_score.append(score)
+            for score in tmp_similarity_score:
+                similarity_score.append(score)
                 round_idx.append(tmp_round_idx)
                 problem_idx.append(tmp_problem_index)
 
     # Store the collected data in a dictionary
     simu_data_dict = {
         "round": round_idx,  # List of round indices
-        "simularity": simularity_score,  # List of similarity scores
+        "similarity": similarity_score,  # List of similarity scores
         "problem": problem_idx  # List of problem indices
     }
 
@@ -76,8 +76,8 @@ def process_file(file_name: str):
     return data_df
 
 def calculate_simi_mean_std(df):
-    # group by round and calculate mean and std of simularity
-    grouped = df.groupby('round')['simularity'].agg(['mean', 'std'])
+    # group by round and calculate mean and std of similarity
+    grouped = df.groupby('round')['similarity'].agg(['mean', 'std'])
     
     # get the max round
     max_round = grouped.index.max()
@@ -104,18 +104,18 @@ def plot_swarm_figure(data_df: pd.DataFrame, save_path: str = None):
     Plots a swarm plot of similarity scores across rounds, with points colored by problem index.
 
     Args:
-        data_df (pd.DataFrame): A DataFrame containing the columns 'round', 'simularity', and 'problem'.
+        data_df (pd.DataFrame): A DataFrame containing the columns 'round', 'similarity', and 'problem'.
         save_path (str, optional): The file path to save the plot. If None, the plot is not saved.
     """
     plt.clf()
-    # Create a swarm plot with 'round' on the x-axis, 'simularity' on the y-axis, and colored by 'problem'
-    # sns.swarmplot(x="round", y="simularity", hue="problem", data=data_df, palette="viridis",
+    # Create a swarm plot with 'round' on the x-axis, 'similarity' on the y-axis, and colored by 'problem'
+    # sns.swarmplot(x="round", y="similarity", hue="problem", data=data_df, palette="viridis",
     #     size=3,  # 减小点的大小
     #     alpha=0.6,  # 添加透明度
     #     )
     sns.stripplot(
         x="round", 
-        y="simularity", 
+        y="similarity", 
         hue="problem", 
         data=data_df, 
         palette="viridis",
