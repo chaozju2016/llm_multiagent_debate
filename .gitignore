@@ -17,3 +17,7 @@ mmlu/cais/
 nomic-ai/
 hendryck/hendrycks_math/
 hendryck/math/
+mmlu/mmlu/
+cais/
+gpqa/
+*.csv
